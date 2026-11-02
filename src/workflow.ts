@@ -30,12 +30,13 @@ function strings(value: unknown, name: string): string[] {
 }
 /** Strip unknown fields and validate every browser/model-supplied operation. */
 export function parseWorkflowOperations(value: unknown): WorkflowOperation[] {
-  if (!Array.isArray(value) || value.length === 0 || value.length > 50) throw new Error('每次提案需要 1–50 个修改')
-  return value.map(raw => {
+  if (!Array.isArray(value)) throw new Error('operations must be an array of objects, not a JSON-encoded string. Pass operations: [{"action":"update_member","name":"worker","summary":"Updated responsibility"}] directly.')
+  if (value.length === 0 || value.length > 50) throw new Error('每次提案需要 1–50 个修改')
+  return value.map((raw, index) => {
     const op = object(raw), action = op['action']
     if (typeof action !== 'string' || !action.trim()) throw new Error('每个修改对象必须包含 action 字段，例如 {"action":"update_member","name":"planner","summary":"职责说明"}；参数与 action 同层，不使用 type、op 或嵌套 payload')
     const fields = (names: string[]) => Object.fromEntries(names.flatMap(name => op[name] === undefined ? [] : [[name, text(op[name], name)]]))
-    const layered = op['layers'] === undefined ? {} : {layers:parseLayers(op['layers'])}
+    const layered = op['layers'] === undefined ? {} : {layers:parseLayers(op['layers'], `operations[${index}].layers`)}
     for (const field of ['configurationPending', 'confirmConfiguration']) if (op[field] !== undefined && typeof op[field] !== 'boolean') throw new Error(`${field} 必须是布尔值`)
     switch (action) {
       case 'add_member': return { action, name: text(op['name'], 'name', true)!, summary: text(op['summary'], 'summary', true)!, ...fields(['role', 'executionPrompt', 'specificPrompt', 'provider', 'model', 'reasoningEffort']) }

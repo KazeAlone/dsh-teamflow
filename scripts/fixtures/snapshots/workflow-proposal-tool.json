@@ -5,7 +5,8 @@
     "type": "object",
     "properties": {
       "base": {
-        "type": "string"
+        "type": "string",
+        "description": "Copy base exactly from the latest agent_teams_workflow_context result."
       },
       "title": {
         "type": "string"
@@ -31,16 +32,20 @@
               ]
             },
             "id": {
-              "type": "string"
+              "type": "string",
+              "description": "Existing task ID for task edits/removal/rerun, or checkpoint ID for rework. Optional new ID for add_task."
             },
             "name": {
-              "type": "string"
+              "type": "string",
+              "description": "Required for member operations; use the exact member name."
             },
             "subject": {
-              "type": "string"
+              "type": "string",
+              "description": "Required non-empty title for add_task."
             },
             "summary": {
-              "type": "string"
+              "type": "string",
+              "description": "Required responsibility summary for add_member."
             },
             "role": {
               "type": "string"
@@ -68,7 +73,7 @@
             },
             "layers": {
               "type": "object",
-              "description": "Generate both layers when creating tasks: general is the reusable method and quality constraints; specific is the COMPLETE standalone execution contract, concretizing every general method, deliverable and acceptance constraint for the current goal, paths and parameters. Executors see only specific, never general; do not use references such as follow the general requirements. Each has requirements, deliverables, acceptance strings. Do not duplicate layers in description.",
+              "description": "Pass a JSON object directly, never a JSON-encoded string, array, null or empty string. general and specific are objects; their requirements, deliverables and acceptance fields are strings. Generate both layers when creating tasks: general is the reusable method and quality constraints; specific is the COMPLETE standalone execution contract, concretizing every general method, deliverable and acceptance constraint for the current goal, paths and parameters. Executors see only specific, never general; do not refer back to general. Do not duplicate layers in description. Omit layers entirely when making an unrelated edit.",
               "additionalProperties": false,
               "properties": {
                 "general": {
@@ -79,10 +84,12 @@
                       "type": "string"
                     },
                     "deliverables": {
-                      "type": "string"
+                      "type": "string",
+                      "description": "Plain text, not an array. Separate multiple deliverables with newlines."
                     },
                     "acceptance": {
-                      "type": "string"
+                      "type": "string",
+                      "description": "Plain text, not an array. Separate multiple acceptance criteria with newlines."
                     }
                   },
                   "required": [
@@ -99,10 +106,12 @@
                       "type": "string"
                     },
                     "deliverables": {
-                      "type": "string"
+                      "type": "string",
+                      "description": "Plain text, not an array. Separate multiple deliverables with newlines."
                     },
                     "acceptance": {
-                      "type": "string"
+                      "type": "string",
+                      "description": "Plain text, not an array. Separate multiple acceptance criteria with newlines."
                     }
                   },
                   "required": [
@@ -121,16 +130,19 @@
               "type": "string"
             },
             "instructions": {
-              "type": "string"
+              "type": "string",
+              "description": "Required non-empty new requirements for rerun_task and rework."
             },
             "dependencies": {
               "type": "array",
+              "description": "Required for add_task; use [] for no prerequisites. For update_task omit to keep existing dependencies.",
               "items": {
                 "type": "string"
               }
             },
             "taskIds": {
               "type": "array",
+              "description": "Required upstream task IDs for rework.",
               "items": {
                 "type": "string"
               }

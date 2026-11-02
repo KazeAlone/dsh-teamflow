@@ -10,8 +10,8 @@ import { listTemplates, getTemplate, saveTemplate, deleteTemplate } from '../lib
 import { builtinTemplates, getBuiltinTemplate } from '../lib/builtin-templates.js'
 import { taskSplitBlock, validateTaskSplit } from '../lib/task-split.js'
 import { resolveTeamProfile } from '../lib/profiles.js'
-import { taskText, emptyBrief, taskNeedsConfiguration, requireGeneratedTaskLayers } from '../lib/task-layers.js'
-import { applyWorkflowOperations, workflowFingerprint, checkpointReady } from '../lib/workflow.js'
+import { taskText, emptyBrief, taskNeedsConfiguration, requireGeneratedTaskLayers, parseLayers } from '../lib/task-layers.js'
+import { applyWorkflowOperations, workflowFingerprint, checkpointReady, parseWorkflowOperations } from '../lib/workflow.js'
 import { isTeamTask, createTeamDir, readTeam } from '../lib/state.js'
 import { installWorkflowWorkbench } from '../lib/workflow-runtime.js'
 import { isWorkflowState } from '../lib/workflow-validation.js'
@@ -25,6 +25,20 @@ const definition=()=>({name:'算子流程',description:'适合算子开发',tags
 const template=()=>({...definition(),id:'11111111-1111-4111-8111-111111111111',version:1,createdAt:1,updatedAt:1})
 const team=()=>instantiateTemplate(template(),'new-team','captain','算子 B','实现算子 B')
 const adaptation=t=>t.tasks.map(task=>({action:'update_task',id:task.id,layers:{general:task.layers.general,specific:{requirements:`本次处理算子 B：${task.subject}`,deliverables:'B 的交付物',acceptance:'B 的验收要求'}},adaptationIssue:'',confirmConfiguration:true}))
+
+test('layer diagnostics identify the failing path and type without guessing task content', () => {
+  for (const [value, type] of [[null, 'null'], [[], 'array'], ['', 'string'], ['{}', 'string'], [false, 'boolean']]) {
+    assert.throws(() => parseLayers(value), error => error.message.includes(`layers must be an object (received ${type})`))
+  }
+  const layers = { general: { ...general }, specific: { ...general } }
+  assert.throws(() => parseLayers({ specific: general }), /layers.general must be an object/)
+  assert.throws(() => parseLayers({ ...layers, specific: { ...general, acceptance: undefined } }), /layers.specific.acceptance must be a string \(received undefined\)/)
+  assert.throws(() => parseLayers({ ...layers, specific: { ...general, deliverables: ['result.txt'] } }), /layers.specific.deliverables must be a string \(received array\)/)
+  assert.throws(() => parseLayers({ ...layers, specific: { ...general, requirements: 'x'.repeat(16001) } }), /layers.specific.requirements.*16000/)
+  assert.throws(() => parseWorkflowOperations([{ action: 'update_member', name: 'worker', summary: 'unchanged' }, { action: 'update_task', id: 't1', layers: { ...layers, specific: [] } }]), /operations\[1\].layers.specific must be an object/)
+  assert.equal(parseLayers({ ...layers, specific: { ...general, deliverables: '  a\nb  ' } }).specific.deliverables, 'a\nb')
+  assert.deepEqual(layers, { general, specific: general }, 'parsing cannot change the caller input')
+})
 
 test('export and instantiation keep structure but never reuse execution/session/route data',()=>{
   const source=team();Object.assign(source.tasks[0],{output:'A secret result',attempt:5,status:'completed',attemptId:'old',changedPaths:['A.cpp']});Object.assign(source.members[0],{id:'old-session',provider:'old-provider',specificPrompt:'A ONLY'});source.workflow.discussions={};

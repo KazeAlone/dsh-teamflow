@@ -4,12 +4,14 @@
 
 这是 [yogurtss/dsh-teamflow](https://github.com/yogurtss/dsh-teamflow) 开发分支，基于 [NanmiCoder/dsh-agent-teams](https://github.com/NanmiCoder/dsh-agent-teams) 扩展。让模型先讨论并建立团队，再由你调整成员职责、任务交接和人工验收节点。
 
-**安装本分支请使用本仓库 GitHub 地址或本地构建包。** 新包名为 `@yogurtss/dsh-teamflow`，当前开发版本为 `0.2.5-dev.6`；尚未发布到 npm。原版包 `@nanmicoder/dsh-agent-teams` 与本项目不同。
+**安装本分支请使用本仓库 GitHub 地址或本地构建包。** 新包名为 `@yogurtss/dsh-teamflow`，当前开发版本为 `0.2.5-dev.7`；尚未发布到 npm。原版包 `@nanmicoder/dsh-agent-teams` 与本项目不同。
 
 新对话可直接点击 **Teamflow → 流程模板库 Gallery**，不需要输入命令。也可使用 `/teamflow` 开始讨论；仅注册 `/teamflow` 和 `/teamflow-<profile>`，旧 `/agent-teams` 及其 profile 命令已移除。选择预设团队角色也可使用 `/teamflow --profile <名称> <目标>`。为读取原团队记录，`.agent-teams/` 数据目录、内部 `agent_teams_*` 工具和会话事件协议保持不变。历史报告中的旧名称及截图是当时的实测记录。
 
 
-## 0.2.5-dev.6 · 个人流程模板库
+## 0.2.5-dev.7 · 个人流程模板库
+
+本次开发更新修复提案格式指令冲突，补充经过校验的创建示例，明确对象与文本字段并细化分层报错。见[创建参数契约修复](./release-notes/v0.2.5-dev.7.md)。现有创建与审批流程保持不变，尚未完成小模型成功率对照测试。
 
 内置“功能开发”模板 v2 包含 9 个节点、4 个角色，支持需求与代码调查、实现与测试准备、验证与审查的并行协作；保留 v1，另外两个模板不变。
 

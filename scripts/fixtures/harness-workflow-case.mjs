@@ -103,7 +103,19 @@ export async function exerciseWorkflow({ baseUrl, cookie, captain, readTeam, rec
   } while (Date.now() < deadline);
   assert.equal(result.team.tasks[1].output, 'WEB_MEMBER_TASK_DONE', 'Approving and resuming must dispatch a real member through the scheduler');
   for (const agent of ctx.agents.list()) await agent.whenIdle();
-  result = await post('state'); // Completion cleanup can advance the revision while agents drain.
+  // Agent idle precedes asynchronous completion cleanup. Wait for a quiet
+  // revision before simulating the next human edit; do not retry mutations or
+  // weaken the stale-base rejection assertions below.
+  const settledDeadline = Date.now() + 5000;
+  result = await post('state');
+  let stableReads = 0;
+  while (stableReads < 3) {
+    assert.ok(Date.now() < settledDeadline, 'Completion state did not settle before the next human edit');
+    await new Promise(resolve => setTimeout(resolve, 50));
+    const next = await post('state');
+    stableReads = next.base === result.base ? stableReads + 1 : 0;
+    result = next;
+  }
   result=await post('edit',{base:result.base,title:'Rerun path gates',operations:[
     {action:'add_task',id:'path-gate',subject:'Review rerun output',description:'Read the new output',checkpoint:true,dependencies:['t1']},
     {action:'add_task',id:'path-target',subject:'Final rerun review',description:'Confirm the new review',checkpoint:true,dependencies:['path-gate']}

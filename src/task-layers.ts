@@ -14,13 +14,26 @@ export function isTaskLayers(value: unknown): value is TaskLayers {
   const v = value as TaskLayers | undefined
   return !!v && isTaskBrief(v.general) && isTaskBrief(v.specific)
 }
-export function parseBrief(value: unknown): TaskBrief {
-  if (!isTaskBrief(value)) throw new Error('任务层需要任务要求、交付物和验收要求三个文本字段（每项最多 16000 字）')
-  return { requirements: value.requirements.trim(), deliverables: value.deliverables.trim(), acceptance: value.acceptance.trim() }
+function valueType(value: unknown): string {
+  return value === null ? 'null' : Array.isArray(value) ? 'array' : typeof value
 }
-export function parseLayers(value: unknown): TaskLayers {
-  if (!isTaskLayers(value)) throw new Error('通用任务和本次任务格式无效')
-  return { general: parseBrief(value.general), specific: parseBrief(value.specific) }
+function layerObject(value: unknown, path: string): Record<string, unknown> {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    throw new Error(`${path} must be an object (received ${valueType(value)}). Pass a JSON object directly, not a JSON-encoded string, array or null.`)
+  }
+  return value as Record<string, unknown>
+}
+export function parseBrief(value: unknown, path = 'taskBrief'): TaskBrief {
+  const brief = layerObject(value, path)
+  for (const key of ['requirements', 'deliverables', 'acceptance']) {
+    if (typeof brief[key] !== 'string') throw new Error(`${path}.${key} must be a string (received ${valueType(brief[key])}). Use plain text for lists, not arrays; all three text fields are required.`)
+    if (brief[key].length > 16000) throw new Error(`${path}.${key} must contain at most 16000 characters.`)
+  }
+  return { requirements: (brief['requirements'] as string).trim(), deliverables: (brief['deliverables'] as string).trim(), acceptance: (brief['acceptance'] as string).trim() }
+}
+export function parseLayers(value: unknown, path = 'layers'): TaskLayers {
+  const layers = layerObject(value, path)
+  return { general: parseBrief(layers['general'], `${path}.general`), specific: parseBrief(layers['specific'], `${path}.specific`) }
 }
 export function briefText(value: TaskBrief): string {
   return [value.requirements, value.deliverables && `交付物：\n${value.deliverables}`, value.acceptance && `验收要求：\n${value.acceptance}`].filter(Boolean).join('\n\n')
@@ -39,5 +52,5 @@ export function requireGeneratedTaskLayers(operations:import('./workflow-types.t
     if(!op.layers || !op.layers.general.requirements.trim() || !op.layers.specific.requirements.trim())throw new Error('新建任务必须提供 layers.general 和 layers.specific，各含 requirements、deliverables、acceptance 三个字符串；两层 requirements 均不能为空。不要将分层标题写入 description。')
   }
 }
-const briefParameter = {type:'object',additionalProperties:false,properties:{requirements:{type:'string',required:true},deliverables:{type:'string',required:true},acceptance:{type:'string',required:true}}} as const
-export const taskLayersParameter = {type:'object',description:'Generate both layers when creating tasks: general is the reusable method and quality constraints; specific is the COMPLETE standalone execution contract, concretizing every general method, deliverable and acceptance constraint for the current goal, paths and parameters. Executors see only specific, never general; do not use references such as follow the general requirements. Each has requirements, deliverables, acceptance strings. Do not duplicate layers in description.',additionalProperties:false,properties:{general:{...briefParameter,required:true},specific:{...briefParameter,required:true}}} as const
+const briefParameter = {type:'object',additionalProperties:false,properties:{requirements:{type:'string',required:true},deliverables:{type:'string',required:true,description:'Plain text, not an array. Separate multiple deliverables with newlines.'},acceptance:{type:'string',required:true,description:'Plain text, not an array. Separate multiple acceptance criteria with newlines.'}}} as const
+export const taskLayersParameter = {type:'object',description:'Pass a JSON object directly, never a JSON-encoded string, array, null or empty string. general and specific are objects; their requirements, deliverables and acceptance fields are strings. Generate both layers when creating tasks: general is the reusable method and quality constraints; specific is the COMPLETE standalone execution contract, concretizing every general method, deliverable and acceptance constraint for the current goal, paths and parameters. Executors see only specific, never general; do not refer back to general. Do not duplicate layers in description. Omit layers entirely when making an unrelated edit.',additionalProperties:false,properties:{general:{...briefParameter,required:true},specific:{...briefParameter,required:true}}} as const

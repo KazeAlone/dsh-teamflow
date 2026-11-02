@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { createHash } from 'node:crypto'
-import { mkdtempSync, writeFileSync, rmSync } from 'node:fs'
+import { mkdtempSync, writeFileSync, rmSync, readFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { applyWorkflowOperations, applyWorkflowProposal, checkpointReady, decideCheckpoint, parseWorkflowOperations, proposeWorkflow, workflowFingerprint, workflowState } from '../lib/workflow.js'
@@ -24,6 +24,52 @@ const member = { id: '', name: 'worker', role: 'developer', provider: 'fixture',
 const task = (id, dependencies = []) => ({ id, subject: id, assignee: 'worker', dependencies, status: 'pending', attempt: 0, kind: 'work', createdAt: 1, updatedAt: 1 })
 const team = () => ({ id: 'demo', name: 'Demo', captainSessionId: 'captain-id', members: [{ ...member }], tasks: [task('t1')], taskSeq: 1, createdAt: 1, phase: 'running' })
 const withGate = () => applyWorkflowOperations(team(), [{ action: 'add_task', id: 'gate', subject: 'Human review', checkpoint: true, dependencies: ['t1'] }, { action: 'add_task', id: 'after', subject: 'After', dependencies: ['gate'], assignee: 'worker' }])
+
+test('native planning instructions produce valid structured proposals and reject malformed layers without saving', async t => {
+  const root = mkdtempSync(join(tmpdir(), 'workflow-tool-contract-'))
+  t.after(() => rmSync(root, { recursive: true, force: true }))
+  const stateRoot = join(root, '.agent-teams')
+  const source = { ...team(), phase: 'staged', members: [], tasks: [], taskSeq: 0 }
+  const nativeId = `session-at-discussion-${createHash('sha256').update(source.id).digest('hex').slice(0, 16)}-00000000-0000-0000-0000-000000000001`
+  workflowState(source).discussions['discussion:graph'] = { key: 'graph', messages: [], calls: [], native: { sessionId: nativeId, label: 'contract-test' } }
+  await createTeamDir(stateRoot, source)
+  const definitions = new Map(), sections = []; let setup
+  installWorkflowConversations({ tools: { register: d => definitions.set(d.name, d) }, subagents: { registerContinuableSetup: fn => { setup = fn } } }, { stateDir: '.agent-teams', maxMembers: 8 }, workflowMaterials)
+  const agent = { id: nativeId, session: { header: { cwd: root }, ownEvents: () => [] } }
+  setup({ agent, tools: { restrict: () => () => {} }, systemPrompt: { section: s => { sections.push(s.text); return () => {} }, getSectionOrder: () => 0 }, on: () => () => {} })
+  const persona = sections.join('\n')
+  assert.doesNotMatch(persona, /operations 必须是 JSON 数组编码后的字符串/)
+  assert.match(persona, /operations 直接传对象数组/)
+  const args = JSON.parse(persona.split('\n').find(line => line.startsWith('{"base":')))
+  const exec = { agent, signal: new AbortController().signal }
+  const context = JSON.parse(await definitions.get('agent_teams_workflow_context').execute({}, exec))
+  args.base = context.base
+  const tool = definitions.get('agent_teams_workflow_propose')
+  assert.deepEqual({ name: tool.name, description: tool.description, parameters: tool.parameters }, JSON.parse(readFileSync(new URL('./fixtures/snapshots/workflow-proposal-tool.json', import.meta.url), 'utf8')))
+  const before = readFileSync(join(stateRoot, source.id, 'team.json'), 'utf8')
+  for (const change of [
+    a => { a.operations = JSON.stringify(a.operations) },
+    ...['', null, [], '{}'].map(value => a => { a.operations[1].layers = value }),
+    a => { a.operations[1].layers = JSON.stringify(a.operations[1].layers) },
+    a => { delete a.operations[1].layers.general },
+    a => { a.operations[1].layers.specific.deliverables = ['result.txt'] },
+    a => { delete a.operations[1].layers.specific.acceptance },
+    a => { delete a.operations[1].layers },
+  ]) {
+    const invalid = structuredClone(args); change(invalid)
+    await assert.rejects(tool.execute(invalid, exec), /operations|layers/)
+    assert.equal(readFileSync(join(stateRoot, source.id, 'team.json'), 'utf8'), before, 'invalid calls cannot replace proposals or mutate the team')
+  }
+  await tool.execute(args, exec)
+  const saved = await readTeam(stateRoot, source.id), proposal = saved.workflow.discussions['discussion:graph'].proposal
+  assert.equal(proposal.status, 'pending')
+  assert.equal(saved.tasks.length, 0, 'a valid example still requires human confirmation')
+  assert.equal(saved.members.length, 0)
+  const applied = applyWorkflowProposal(saved, proposal, 8)
+  assert.equal(applied.tasks.length, 1)
+  assert.equal(applied.tasks[0].assignee, applied.members[0].name)
+  assert.equal(applied.tasks[0].layers.specific.requirements, args.operations[1].layers.specific.requirements)
+})
 
 async function lifecycleFixture(t, source, options = {}) {
   const root = mkdtempSync(join(tmpdir(), 'workflow-lifecycle-'))
