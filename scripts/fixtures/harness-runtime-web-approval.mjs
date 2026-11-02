@@ -83,7 +83,7 @@ class WebApprovalAdapter extends LlmAdapter {
               definition.name = 'Reusable operator workflow'; definition.description = 'Reusable development and verification'; definition.tags = ['operator']; definition.inputs = 'Target operator requirements';
               definition.members.forEach(m => { m.executionPrompt = 'WEB_APPROVAL_MEMBER: implement the current goal and report evidence'; });
               definition.tasks.forEach(t => { t.general = { requirements: 'Implement according to confirmed specifications', deliverables: 'Implementation and evidence', acceptance: 'Independent correctness checks' }; });
-              yield* call('agent_teams_template_propose', { base: context.base, definition: JSON.stringify(definition) }); return;
+              yield* call('agent_teams_template_propose', { base: context.base, definition }); return;
             }
             const operations = context.discussion==='graph' && context.team?.members.length===0 ? [
                 {action:'add_member',name:'worker',summary:'讨论规划的执行成员',role:'WEB_APPROVAL_MEMBER'},

@@ -14,7 +14,7 @@ import { readTeam, readTeamSync, sanitizeKey, withTeamLock, writeTeam } from './
 import { installContinuableMemberSetup } from './harness-compat.ts'
 import { resolveMemberLlmSelection } from './members.ts'
 import { checkpointInputs, checkpointReady, proposeWorkflow, workflowFingerprint, workflowState } from './workflow.ts'
-import { extractedTemplate, templateSeed, validateAdaptation } from './templates.ts'
+import { extractedTemplate, templateSeed, templateGenerationFormat, templateDefinitionParameter, validateAdaptation } from './templates.ts'
 import { taskText, requireTaskDescriptions } from './task-description.ts'
 
 export function reviewOpening(team: TeamState, taskId: string): string {
@@ -119,7 +119,7 @@ export function installWorkflowConversations(ctx: Context, config: ToolsConfig,
         }
       }
       discussion.contextBase = workflowFingerprint(team)
-      if(discussion.key==='template')return JSON.stringify({discussion:discussion.key,base:discussion.contextBase,source:{name:team.name,description:team.description,members:team.members.map(({name,summary,role,executionPrompt,specificPrompt})=>({name,summary,role,executionPrompt,specificPrompt})),tasks:team.tasks.map(({id,subject,description})=>({id,subject,description}))},templateFormat:templateSeed(team),instructions:'提炼可复用的方法与验收标准，移除本次项目名称、路径、数值和成员 PE 中的专用要求。保留成员名称、所有节点 ID、负责人和依赖。用 agent_teams_template_propose 提交可编辑草稿，不能修改源团队。'})
+      if(discussion.key==='template')return JSON.stringify({discussion:discussion.key,base:discussion.contextBase,source:{name:team.name,description:team.description,members:team.members.map(({name,summary,role,executionPrompt,specificPrompt})=>({name,summary,role,executionPrompt,specificPrompt})),tasks:team.tasks.map(({id,subject,description})=>({id,subject,description}))},templateFormat:templateGenerationFormat(team),instructions:'提炼可复用的方法与验收标准，移除本次项目名称、路径、数值和成员 PE 中的专用要求。保留成员名称、所有节点 ID、负责人和依赖。用 agent_teams_template_propose 提交可编辑草稿，definition 直接传对象，不要 JSON.stringify；不提交 positions，布局由服务端保留。不能修改源团队。'})
       if(discussion.key==='adapt')return JSON.stringify({discussion:discussion.key,base:discussion.contextBase,goal:team.description,template:team.workflow?.templateDefinition,members:team.members,tasks:team.tasks,instructions:'结合模板的通用要求和用户目标讨论并生成每个节点完整的 description，包括具体交付物和验收标准。保留节点、负责人和依赖，一次提交全部节点的 update_task。缺少关键信息先问用户；无法适用时填写 adaptationIssue。不要引用通用层，不要返回 layers。最终由用户确认。'})
       if (discussion.key.startsWith('task:')) {
         const context = taskDiscussionContext(team, discussion.key.slice(5))
@@ -166,12 +166,12 @@ export function installWorkflowConversations(ctx: Context, config: ToolsConfig,
   }))
 
   ctx.tools.register(defineTool({name:ALLOW[2]!,description:'Propose a portable workflow template for human editing and saving. Does not change the source team or publish anything.',
-    parameters:{base:{type:'string',required:true},definition:{type:'string',required:true,description:'JSON template matching templateFormat from workflow context. Keep IDs, assignees and dependencies; general contains requirements, deliverables, acceptance strings.'}},output,
+    parameters:{base:{type:'string',required:true},definition:templateDefinitionParameter},output,
     execute:(args,exec)=>scoped(exec.agent,(team,discussion)=>{
       if(discussion.key!=='template')throw new Error('仅模板提炼讨论可提交模板')
       if(args.base!==discussion.contextBase||args.base!==workflowFingerprint(team))throw new Error('源流程已变化，请重新读取上下文')
-      if(args.definition.length>300000)throw new Error('模板过长')
-      discussion.templateDraft={base:args.base,definition:extractedTemplate(team,JSON.parse(args.definition))}
+      if(JSON.stringify(args.definition).length>300000)throw new Error('模板过长')
+      discussion.templateDraft={base:args.base,definition:extractedTemplate(team,{...args.definition,positions:templateSeed(team).positions})}
       return JSON.stringify({status:'draft',next:'模板草稿已生成，请在保存为模板页面检查并保存。源团队未修改。'})
     })}))
 

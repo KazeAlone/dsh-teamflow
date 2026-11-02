@@ -4,7 +4,7 @@ English · [简体中文](./README_ZH.md)
 
 This is the [yogurtss/dsh-teamflow](https://github.com/yogurtss/dsh-teamflow) development fork of [NanmiCoder/dsh-agent-teams](https://github.com/NanmiCoder/dsh-agent-teams). Discuss a goal, form an initial team, then adjust member instructions, task handoffs and human checkpoints.
 
-**Install this fork from GitHub or a local build.** Its new package name is `@yogurtss/dsh-teamflow`; the development version is `0.2.5-dev.11`. It is not published to npm. The upstream package is `@nanmicoder/dsh-agent-teams`.
+**Install this fork from GitHub or a local build.** Its new package name is `@yogurtss/dsh-teamflow`; the development version is `0.2.5-dev.12`. It is not published to npm. The upstream package is `@nanmicoder/dsh-agent-teams`.
 
 Click **团队与流程** at the top of the TeamFlow activity panel or team page to open the workbench. The button shows pending changes and human reviews; completed and archived teams also open the full canvas, including task requirements, results and verification records.
 
@@ -13,9 +13,9 @@ Human checkpoints require opening their evidence and clicking **通过验收** o
 Use `/teamflow` to start. Only `/teamflow` and `/teamflow-<profile>` commands are registered; the old `/agent-teams` command and its profile aliases have been removed. Use `/teamflow --profile <name> <goal>` to select a profile explicitly. The `.agent-teams/` data directory, internal `agent_teams_*` tools and session event protocol remain unchanged to preserve existing records. Historical reports retain the names and screenshots captured at the time.
 
 
-## 0.2.5-dev.11 · Simple task descriptions, reusable templates
+## 0.2.5-dev.12 · Structured template extraction
 
-Ordinary creation uses one complete task description again. Applying a template opens a discussion to specialize its requirements into complete task descriptions; reusable instructions are extracted only when saving a template. The two-stage creation tools, layer editor and automatic completion loop have been removed. See [single task descriptions](./release-notes/v0.2.5-dev.11.md).
+Ordinary creation uses one complete task description. Applying a template opens a discussion to specialize its requirements; reusable instructions are extracted only when saving a template. Template extraction now accepts a structured object instead of JSON encoded inside a string, fixing repeated parsing failures observed in real-model trials. See [changes and validation](./release-notes/v0.2.5-dev.12.md).
 
 ## Discussions stay inside Workflow
 

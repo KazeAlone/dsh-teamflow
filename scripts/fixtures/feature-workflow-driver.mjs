@@ -12,18 +12,21 @@ export function apply(ctx) {
     const parallel = process.env.WORKFLOW_TRIAL_PARALLEL === '1', resume = process.env.WORKFLOW_TRIAL_RESUME === '1';
     const planningOnly=process.env.WORKFLOW_TRIAL_PLANNING_ONLY==='1',fromScratch=process.env.WORKFLOW_TRIAL_FROM_SCRATCH==='1';
     const captainPlanning=process.env.WORKFLOW_TRIAL_CAPTAIN_PLANNING==='1';
+    const saveTemplate=process.env.WORKFLOW_TRIAL_SAVE_TEMPLATE==='1';
     const report = process.env.WORKFLOW_TRIAL_REPORT, events = [];
     const overlaps = new Set(); let observed = false;
     const pairs = [['requirements','impact'],['implementation','test-preparation'],['verification','code-review']];
     let requests = resume ? readFileSync(join(report,'trace.jsonl'),'utf8').trim().split('\n').map(JSON.parse).filter(e=>e.event==='model-request').length : 0, stage = 'startup', state;
     if(resume) for(const e of readFileSync(join(report,'trace.jsonl'),'utf8').trim().split('\n').map(JSON.parse))if(e.tasks)for(const pair of pairs)if(pair.every(id=>e.tasks.some(t=>t.id===id&&['claimed','in_progress'].includes(t.status))))overlaps.add(pair.join('+'));
     const record = e => { events.push({ ...e, at: Date.now() }); appendFileSync(join(report, 'trace.jsonl'), JSON.stringify(events.at(-1)) + '\n'); };
+    ctx.on('agent/error', ({agent,error}) => record({event:'agent-error',sessionId:agent.id,message:String(error.message).slice(0,600),code:error.failure?.code}));
     ctx.on('llm/stream', async function* (options, next) { if (++requests > (planningOnly ? 12 : parallel ? 110 : 70))
         throw Error('Trial request budget exhausted'); record({ event: 'model-request', request: requests, provider: options.provider, model: options.model, sessionId: options.sessionId, ...(planningOnly ? {messages:options.messages} : {}) }); try {
         for await (const chunk of next()) {
             if (chunk.type === 'text-delta')
                 record({ event: 'text', text: chunk.text });
             if (chunk.type === 'usage') record({event:'usage',usage:chunk.usage});
+            if (chunk.type === 'finish') record({event:'model-finish',reason:chunk.reason});
             yield chunk;
         }
     }
@@ -69,9 +72,22 @@ export function apply(ctx) {
                 throw Error('Task failed ' + id + ': ' + task.output);
             await new Promise(r => setTimeout(r, 1000));
         } while (Date.now() < deadline); throw Error('Task timeout ' + id); };
+        const extractTemplate = async () => {
+          if(!saveTemplate)return;
+          teamId=state.team.id;
+          const source=JSON.stringify(state.team.tasks);
+          await discussion('template');
+          const draft=state.team.workflow.discussions['discussion:template'].templateDraft?.definition;
+          assert.ok(draft?.tasks.every(task=>task.general.requirements.trim()),'Extraction must produce reusable requirements for every node');
+          assert.equal(JSON.stringify(state.team.tasks),source,'Extraction must not rewrite source tasks');
+          const saved=await post('template_save',{definition:draft});
+          assert.ok(saved.template?.id);
+          writeFileSync(join(report,'extracted-template.json'),JSON.stringify(saved.template,null,2));
+          record({event:'template-extraction-passed',tasks:draft.tasks.length});
+        };
         if(captainPlanning){
           stage='captain-planning';
-          handle.agent.followup(createUserMessage({content:[{type:'text',text:'请用 TeamFlow 为下面的目标创建团队和完整任务计划，等待我最终确认后再执行。\n'+readFileSync('README.md','utf8')}],source:{kind:'user'}}));
+          handle.agent.followup(createUserMessage({content:[{type:'text',text:'/teamflow 为下面的目标创建团队和完整任务计划，等待我最终确认后再执行。\n'+readFileSync('README.md','utf8')}],source:{kind:'user'}}));
           await bounded(handle.agent.whenIdle());
           await post('state');
           assert.ok(state?.team, 'Model did not create a team; inspect model/tool events');
@@ -81,6 +97,7 @@ export function apply(ctx) {
           assert.ok(state.team.members.every(m=>!m.id));
           const calls=events.filter(e=>e.event==='tool-result');
           assert.ok(calls.some(e=>e.name==='agent_teams_create'&&!e.isError&&e.arguments.plan?.tasks.every(t=>t.description?.trim()&&!t.layers&&!t.general)),'Captain must create complete descriptions');
+          await extractTemplate();
           record({event:'planning-only-passed'});
           writeFileSync(join(report,'result.json'),JSON.stringify({passed:true,stage,requests,captainPlanning,team:state.team},null,2));
           ctx.get('appExit')(0);return;
@@ -106,6 +123,7 @@ export function apply(ctx) {
         if(planningOnly){
           assert.equal(state.team.phase,'staged');assert.ok(state.team.tasks.every(t=>t.status==='pending'));
           assert.ok(state.team.tasks.every(t=>t.description?.trim()&&!t.layers));
+          await extractTemplate();
           record({event:'planning-only-passed'});
           writeFileSync(join(report,'result.json'),JSON.stringify({passed:true,stage:'planning-only',requests,fromScratch,team:state.team},null,2));
           ctx.get('appExit')(0);return;
@@ -145,5 +163,5 @@ export function apply(ctx) {
         record({ event: 'workflow-passed' });
         writeFileSync(join(report, 'result.json'), JSON.stringify({ passed: true, stage, requests, team: state.team, externalCases: 20, parallel, overlaps:[...overlaps] }, null, 2));
         ctx.get('appExit')(0);
-    })().catch(error => { writeFileSync(join(report, 'result.json'), JSON.stringify({ passed: false, stage, requests, parallel, overlaps:[...overlaps], error: String(error.stack), team: state?.team, modelErrors: events.filter(e => e.event === 'model-error') }, null, 2)); ctx.get('appExit')(1); });
+    })().catch(error => { writeFileSync(join(report, 'result.json'), JSON.stringify({ passed: false, stage, requests, parallel, overlaps:[...overlaps], error: String(error.stack), team: state?.team, modelErrors: events.filter(e => e.event === 'model-error'||e.event === 'agent-error') }, null, 2)); ctx.get('appExit')(1); });
 }

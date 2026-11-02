@@ -17,7 +17,11 @@ async function mount(t, template = false) {
   const root=await mkdtemp(join(tmpdir(),'two-stage-'));t.after(()=>rm(root,{recursive:true,force:true}))
   const stateRoot=join(root,'.agent-teams')
   const source=template?instantiateTemplate(getBuiltinTemplate('builtin-feature',1),'demo','captain','Ports','Validate ports 1–65535'):{id:'demo',name:'Ports',description:'Validate ports 1–65535',captainSessionId:'captain',phase:'staged',members:[],tasks:[],taskSeq:0,createdAt:1,workflow:{positions:{},history:[],discussions:{}}}
-  const key=template?'adapt':'graph',id=`session-at-discussion-${createHash('sha256').update('demo').digest('hex').slice(0,16)}-00000000-0000-0000-0000-000000000001`
+  if(template==='extract'){
+    source.workflow.positions={'task:requirements':{x:120,y:240}}
+    for(const task of source.tasks){task.description=`${task.subject}: validatePort accepts only primitive integer numbers 1–65535; deliver boundary-test evidence.`;delete task.workflowConfigPending;delete task.workflowPaused}
+  }
+  const key=template==='extract'?'template':template?'adapt':'graph',id=`session-at-discussion-${createHash('sha256').update('demo').digest('hex').slice(0,16)}-00000000-0000-0000-0000-000000000001`
   source.workflow.discussions[`discussion:${key}`]={key,messages:[],calls:[],native:{sessionId:id,label:'planning'}}
   await createTeamDir(stateRoot,source)
   const definitions=new Map(),sections=[],filters=[];let setup
@@ -87,4 +91,20 @@ test('old layer records flatten without losing constraints or bypassing human co
   assert.match(loaded.workflow.discussions['discussion:graph'].proposal.operations[0].description,/Follow confirmed requirements/)
   await f.save(loaded)
   assert.deepEqual(await f.read(),loaded,'Migration must be idempotent')
+})
+
+test('template extraction uses structured arguments, preserves layout and leaves source tasks untouched',async t=>{
+  const f=await mount(t,'extract'),context=await f.context()
+  assert.equal(context.templateFormat.positions,undefined,'Models need not copy canvas coordinates')
+  const definition={...context.templateFormat,tasks:context.templateFormat.tasks.map(task=>({...task,general:brief}))}
+  await assert.rejects(f.call('agent_teams_template_propose',{base:context.base,definition:JSON.stringify(definition)}),/object/)
+  await assert.rejects(f.call('agent_teams_template_propose',{base:context.base,definition:{...definition,tasks:definition.tasks.slice(1)}}),/保留|依赖/)
+  const malformed=structuredClone(definition);malformed.tasks[0].general.deliverables=['code']
+  await assert.rejects(f.call('agent_teams_template_propose',{base:context.base,definition:malformed}),/string/)
+  await f.call('agent_teams_template_propose',{base:context.base,definition})
+  const saved=await f.read(),draft=saved.workflow.discussions['discussion:template'].templateDraft.definition
+  assert.deepEqual(saved.tasks,JSON.parse(JSON.stringify(f.source.tasks)))
+  assert.deepEqual(saved.members,JSON.parse(JSON.stringify(f.source.members)))
+  assert.deepEqual(draft.positions,f.source.workflow.positions)
+  assert.deepEqual(draft.tasks.map(task=>task.general),definition.tasks.map(task=>task.general))
 })

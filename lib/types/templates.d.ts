@@ -39,6 +39,113 @@ export interface TemplateSource {
     version: number;
     name: string;
 }
+export declare const templateDefinitionParameter: {
+    readonly type: "object";
+    readonly required: true;
+    readonly additionalProperties: false;
+    readonly description: "Submit the template object directly, not a JSON-encoded string. Copy node IDs, owners and dependencies from templateFormat; omit positions.";
+    readonly properties: {
+        readonly name: {
+            readonly type: "string";
+            readonly required: true;
+        };
+        readonly description: {
+            readonly type: "string";
+            readonly required: true;
+        };
+        readonly inputs: {
+            readonly type: "string";
+            readonly required: true;
+        };
+        readonly tags: {
+            readonly type: "array";
+            readonly required: true;
+            readonly items: {
+                readonly type: "string";
+            };
+        };
+        readonly members: {
+            readonly type: "array";
+            readonly required: true;
+            readonly items: {
+                readonly type: "object";
+                readonly additionalProperties: false;
+                readonly properties: {
+                    readonly name: {
+                        readonly type: "string";
+                        readonly required: true;
+                    };
+                    readonly summary: {
+                        readonly type: "string";
+                        readonly required: true;
+                    };
+                    readonly role: {
+                        readonly type: "string";
+                        readonly required: true;
+                    };
+                    readonly executionPrompt: {
+                        readonly type: "string";
+                        readonly required: true;
+                    };
+                };
+            };
+        };
+        readonly tasks: {
+            readonly type: "array";
+            readonly required: true;
+            readonly items: {
+                readonly type: "object";
+                readonly additionalProperties: false;
+                readonly properties: {
+                    readonly id: {
+                        readonly type: "string";
+                        readonly required: true;
+                    };
+                    readonly subject: {
+                        readonly type: "string";
+                        readonly required: true;
+                    };
+                    readonly assignee: {
+                        readonly description: "Exact member name, or empty string for a human checkpoint. Never null.";
+                        readonly type: "string";
+                        readonly required: true;
+                    };
+                    readonly dependencies: {
+                        readonly type: "array";
+                        readonly required: true;
+                        readonly items: {
+                            readonly type: "string";
+                        };
+                    };
+                    readonly checkpoint: {
+                        readonly type: "boolean";
+                        readonly required: true;
+                    };
+                    readonly general: {
+                        readonly type: "object";
+                        readonly required: true;
+                        readonly additionalProperties: false;
+                        readonly properties: {
+                            readonly requirements: {
+                                readonly type: "string";
+                                readonly required: true;
+                            };
+                            readonly deliverables: {
+                                readonly type: "string";
+                                readonly required: true;
+                            };
+                            readonly acceptance: {
+                                readonly type: "string";
+                                readonly required: true;
+                            };
+                        };
+                    };
+                };
+            };
+        };
+    };
+};
+export declare function templateGenerationFormat(team: TeamState): Omit<TemplateDefinition, 'positions'>;
 export declare function parseTemplate(value: unknown): TemplateDefinition;
 /** A manual starting point; legacy descriptions are not silently promoted to generic instructions. */
 export declare function templateSeed(team: TeamState): TemplateDefinition;

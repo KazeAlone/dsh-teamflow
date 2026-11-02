@@ -11,6 +11,33 @@ export interface TemplateDefinition {
 }
 export interface TemplateVersion extends TemplateDefinition { id: string; version: number; createdAt: number; updatedAt: number }
 export interface TemplateSource { id: string; version: number; name: string }
+
+// The model submits an object, never JSON encoded inside a string. Keep layout
+// out of generation: the server copies it from the source workflow.
+const requiredText = { type: 'string', required: true } as const
+export const templateDefinitionParameter = {
+  type: 'object', required: true, additionalProperties: false,
+  description: 'Submit the template object directly, not a JSON-encoded string. Copy node IDs, owners and dependencies from templateFormat; omit positions.',
+  properties: {
+    name: requiredText, description: requiredText, inputs: requiredText,
+    tags: { type: 'array', required: true, items: { type: 'string' } },
+    members: { type: 'array', required: true, items: { type: 'object', additionalProperties: false, properties: {
+      name: requiredText, summary: requiredText, role: requiredText, executionPrompt: requiredText,
+    } } },
+    tasks: { type: 'array', required: true, items: { type: 'object', additionalProperties: false, properties: {
+      id: requiredText, subject: requiredText, assignee: { ...requiredText, description: 'Exact member name, or empty string for a human checkpoint. Never null.' },
+      dependencies: { type: 'array', required: true, items: { type: 'string' } }, checkpoint: { type: 'boolean', required: true },
+      general: { type: 'object', required: true, additionalProperties: false, properties: {
+        requirements: requiredText, deliverables: requiredText, acceptance: requiredText,
+      } },
+    } } },
+  },
+} as const
+
+export function templateGenerationFormat(team: TeamState): Omit<TemplateDefinition, 'positions'> {
+  const { positions: _positions, ...format } = templateSeed(team)
+  return format
+}
 const object = (v: unknown): Record<string,unknown> => {
   if (!v || typeof v !== 'object' || Array.isArray(v)) throw new Error('模板格式无效')
   return v as Record<string,unknown>
