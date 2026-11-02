@@ -516,6 +516,10 @@ function Workbench({ sessionId, teamId, archived = false, waitingCount = 0, open
       onDismiss={() => void perform('dismiss', { proposalId: proposal.id }).then(result => { if (result) setFeedback(l("修改已放弃，可以继续讨论。")) })} />
   }
   const pendingProposals = Object.entries(team?.workflow?.discussions ?? {}).filter(([key, item]) => !archiveView && key.startsWith('discussion:') && item.proposal?.status === 'pending').map(([, item]) => item)
+  const generalDrafts = Object.entries(team?.workflow?.discussions ?? {}).filter(([key, item]) => !archiveView && key.startsWith('discussion:') && item.generalDraft && item.proposal?.status !== 'pending').map(([, item]) => item)
+  const planningNotice = generalDrafts.length > 0 && <div className={css.pendingNotice} role="status"><strong>{l("通用草稿已保存，等待生成本次任务")}</strong>
+    {generalDrafts.map(item => <div key={item.generalDraft!.id}><span>{item.generalDraft!.title}</span><button disabled={working} onClick={() => { selectDiscussion(item.key); setOpened(true); void startEmbedded(item.key) }}>{l("继续在此处讨论")}</button><button disabled={working} onClick={() => void perform('dismiss', { discussion:item.key, generalDraftId:item.generalDraft!.id })}>{l("放弃通用草稿")}</button></div>)}
+  </div>
   const pendingCount = pendingProposals.length
   const pendingNotice = pendingCount > 0 && <div className={css.pendingNotice} role="status"><strong>{l("有 ")}{pendingCount} {l(" 项修改等待确认")}</strong>
     {pendingProposals.map(item => <button type="button" key={item.key} onClick={() => { selectDiscussion(item.key); setOpened(true) }}>{l("查看并决定 · ")}{item.proposal!.title}</button>)}
@@ -536,8 +540,9 @@ function Workbench({ sessionId, teamId, archived = false, waitingCount = 0, open
       {pendingCount > 0 && <span>{pendingCount} {l(" 项修改待确认")}</span>}
       {reviewCount > 0 && <span>{reviewCount} {l(" 项等待人工验收")}</span>}
     </button>}
-    {!nativeOnly && !reviewEntryOnly && !archiveView && team?.phase === 'staged' && <button type="button" className={`${css.entry} ${css.startEntry}`} disabled={working || unsaved.length > 0 || unconfigured.length > 0 || pendingCount > 0} title={unsaved.length ? l("请先保存属性草稿") : unconfigured.length ? l("请先完成待配置节点") : pendingCount ? l("请先处理待确认的修改") : undefined} onClick={() => void perform('start')}>{l("确认并启动团队")}</button>}
+    {!nativeOnly && !reviewEntryOnly && !archiveView && team?.phase === 'staged' && <button type="button" className={`${css.entry} ${css.startEntry}`} disabled={working || unsaved.length > 0 || unconfigured.length > 0 || pendingCount > 0 || generalDrafts.length > 0} title={unsaved.length ? l("请先保存属性草稿") : unconfigured.length ? l("请先完成待配置节点") : pendingCount ? l("请先处理待确认的修改") : generalDrafts.length ? l("请先完成两阶段生成") : undefined} onClick={() => void perform('start')}>{l("确认并启动团队")}</button>}
     {!opened && !nativeOnly && !reviewEntryOnly && pendingNotice}
+    {!opened && planningNotice}
     {error && !opened && <div className={css.error} role="alert">{workflowMessage(error, l)}</div>}
     {!nativeOnly && reviewNotice}
     {nativeOnly && data?.currentDiscussion && openContext && <button className={`${css.entry} ${css.compact}`} onClick={openContext}>{proposal ? l("查看待确认修改 ↗") : l("团队与讨论资料 ↗")}</button>}
@@ -560,7 +565,7 @@ function Workbench({ sessionId, teamId, archived = false, waitingCount = 0, open
     }}>
       <header className={css.header}><div className={css.title}><BrandIcon size={32}/><div><strong>{team?.name ?? 'Teamflow'}</strong><span>{archiveView ? l("归档画布 · 成果与详情完整保留") : team?.phase === 'staged' ? l("准备流程 · 确认后开始执行") : l("团队工作台")}</span></div></div>
         <div>{!galleryMode && (archiveView ? <button className={css.primary} disabled={working} onClick={() => void perform('restore_archive')}><WorkflowIcon name="edit" />{l("恢复并编辑流程")}</button> : <button aria-pressed={editing} onClick={() => {setEditing(!editing);updateView(current=>({...current,revision:current.revision+1}))}}>{editing ? <IconBranchOutline16 /> : <WorkflowIcon name="edit" />}{editing ? l("查看流程") : l("编辑流程")}</button>)}
-          {!galleryMode && !archiveView && team?.phase === 'staged' && <button className={css.primary} disabled={working || unsaved.length > 0 || unconfigured.length > 0 || pendingCount > 0} title={unsaved.length ? l("请先保存属性草稿") : unconfigured.length ? l("请先完成待配置节点") : pendingCount ? l("请先处理待确认的修改") : undefined} onClick={() => void perform('start')}>{l("确认并启动")}</button>}
+          {!galleryMode && !archiveView && team?.phase === 'staged' && <button className={css.primary} disabled={working || unsaved.length > 0 || unconfigured.length > 0 || pendingCount > 0 || generalDrafts.length > 0} title={unsaved.length ? l("请先保存属性草稿") : unconfigured.length ? l("请先完成待配置节点") : pendingCount ? l("请先处理待确认的修改") : generalDrafts.length ? l("请先完成两阶段生成") : undefined} onClick={() => void perform('start')}>{l("确认并启动")}</button>}
           {!galleryMode && !archiveView && team?.phase !== 'staged' && team && !team.halted && <span data-flow-controls title={l(zh['flow.control.hint'])}>
             <button disabled={working || unsaved.length > 0 || !flow?.canStart} onClick={() => void perform('set_flow_enabled',{enabled:true,version:flowControlVersion(team)})}>{l("开始全部")}</button>
             <button disabled={working || !flow?.canPause} onClick={() => void perform('set_flow_enabled',{enabled:false,version:flowControlVersion(team)})}>{l("暂停全部")}</button>
@@ -580,6 +585,7 @@ function Workbench({ sessionId, teamId, archived = false, waitingCount = 0, open
         {!!unconfigured.length && <details><summary>{unconfigured.length} {l(" 个节点待配置")}</summary>{unconfigured.map(task => <button key={task.id} onClick={() => {setEditing(true);locateTask(task.id)}}>{task.subject} {l(" · 去配置")}</button>)}</details>}
         {storageError && <span role="alert">{workflowMessage(storageError, l)}</span>}
       </section>}
+      {planningNotice}
       {team && <nav className={css.paneTabs} aria-label={l("工作台视图")}>{(['members', 'flow', 'discussion'] as const).map(value => <button key={value} aria-pressed={pane === value} onClick={() => { setPane(value); setInspectorExpanded(false); if (value === 'discussion') setInspectorHidden(false) }}>{value === 'members' ? l("对象列表") : value === 'flow' ? l("任务流程") : l("修改与验收")}{value === 'discussion' && proposal && <i aria-label={l("有待确认的修改")} />}</button>)}</nav>}
       {pendingNotice}
       {!!team?.tasks.some(task => task.workflowRerunRequired) && <details className={css.suspendedNotice} open><summary>{l("上游重新执行 · ")}{team.tasks.filter(task => task.workflowRerunRequired).length} {l(" 个下游节点需使用新结果")}</summary><p>{l("选择任意待重跑节点，点击「重跑到此节点」，会自动安排它及必要上游。人工检查仍需确认；已有结果与旧验收不再用于本轮。")}</p>{team.tasks.filter(task => task.workflowRerunRequired).map(task => <button key={task.id} onClick={() => { edit(task.checkpoint ? 'check' : 'task', task.id) }}>{task.subject} · {taskReadiness(team,task,l).label}</button>)}</details>}

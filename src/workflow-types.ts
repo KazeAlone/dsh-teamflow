@@ -3,7 +3,7 @@ export type WorkflowOperation =
   | { action: 'add_member'; name: string; summary: string; role?: string; executionPrompt?: string; specificPrompt?: string; provider?: string; model?: string; reasoningEffort?: string }
   | { action: 'update_member'; name: string; summary?: string; role?: string; executionPrompt?: string; specificPrompt?: string; provider?: string; model?: string; reasoningEffort?: string }
   | { action: 'remove_member'; name: string }
-  | { action: 'add_task'; id?: string; subject: string; description?: string; layers?: import('./task-layers.ts').TaskLayers; assignee?: string; dependencies: string[]; checkpoint?: boolean; configurationPending?: boolean }
+  | { action: 'add_task'; id?: string; subject: string; description?: string; layers?: import('./task-layers.ts').TaskLayers; adaptationIssue?: string; assignee?: string; dependencies: string[]; checkpoint?: boolean; configurationPending?: boolean }
   | { action: 'update_task'; id: string; subject?: string; description?: string; layers?: import('./task-layers.ts').TaskLayers; adaptationIssue?: string; assignee?: string; dependencies?: string[]; confirmConfiguration?: boolean }
   | { action: 'remove_task'; id: string }
   | { action: 'rerun_task'; id: string; instructions?: string; subject?: string; description?: string; layers?: import('./task-layers.ts').TaskLayers; adaptationIssue?: string; assignee?: string }
@@ -28,7 +28,9 @@ export interface WorkflowProposal {
   createdAt: number
 }
 export interface DiscussionMessage { role: 'user' | 'assistant'; text: string; at: number }
+export interface GeneralPlanDraft { id: string; base: string; title: string; operations: WorkflowOperation[] }
 export interface WorkflowDiscussion {
+  generalDraft?: GeneralPlanDraft
   splitLayers?: boolean
   templateDraft?: { base: string; definition: import('./templates.ts').TemplateDefinition }
   key: string

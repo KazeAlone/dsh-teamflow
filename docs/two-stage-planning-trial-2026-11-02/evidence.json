@@ -1,0 +1,515 @@
+{
+  "date": "2026-11-02",
+  "host": "0.2.1-rc.2",
+  "model": {
+    "provider": "deepseek-account",
+    "model": "deepseek-flash",
+    "reasoningEffort": "high"
+  },
+  "reports": [
+    {
+      "name": "dev7-template-1",
+      "plugin": "0.2.5-dev.7",
+      "passed": true,
+      "stage": "planning-only",
+      "requests": 3,
+      "planningFirstPass": true,
+      "noToolErrors": true,
+      "planningArgumentCharacters": 6523,
+      "planningCalls": [
+        {
+          "tool": "agent_teams_workflow_propose",
+          "failed": false
+        }
+      ],
+      "allToolErrors": [],
+      "seconds": 78.895,
+      "outputTokens": 14486,
+      "generalFieldsReceivedBeforeSpecific": null,
+      "taskCount": 5,
+      "phase": "staged",
+      "unspawned": true,
+      "traceSha256": "fabc9188d1a0dabaf4fe63ebf00979bd9d197d3fe87d6f815130d7d6398b0f6c"
+    },
+    {
+      "name": "dev7-template-2",
+      "plugin": "0.2.5-dev.7",
+      "passed": true,
+      "stage": "planning-only",
+      "requests": 3,
+      "planningFirstPass": true,
+      "noToolErrors": true,
+      "planningArgumentCharacters": 8124,
+      "planningCalls": [
+        {
+          "tool": "agent_teams_workflow_propose",
+          "failed": false
+        }
+      ],
+      "allToolErrors": [],
+      "seconds": 256.95,
+      "outputTokens": 11899,
+      "generalFieldsReceivedBeforeSpecific": null,
+      "taskCount": 5,
+      "phase": "staged",
+      "unspawned": true,
+      "traceSha256": "d62a33e23248a9d741f0d792e4ab330d51c45691a63a8e6c57e7a59f5cb3ea38"
+    },
+    {
+      "name": "dev7-template-3",
+      "plugin": "0.2.5-dev.7",
+      "passed": true,
+      "stage": "planning-only",
+      "requests": 3,
+      "planningFirstPass": true,
+      "noToolErrors": true,
+      "planningArgumentCharacters": 10490,
+      "planningCalls": [
+        {
+          "tool": "agent_teams_workflow_propose",
+          "failed": false
+        }
+      ],
+      "allToolErrors": [],
+      "seconds": 98.238,
+      "outputTokens": 19107,
+      "generalFieldsReceivedBeforeSpecific": null,
+      "taskCount": 5,
+      "phase": "staged",
+      "unspawned": true,
+      "traceSha256": "0077cae911f3767c116ac8302bf0684958450e5be8b60af2c95980e24b5d45bb"
+    },
+    {
+      "name": "dev8-captain-1",
+      "plugin": "0.2.5-dev.8",
+      "passed": true,
+      "stage": "captain-planning",
+      "requests": 12,
+      "planningFirstPass": true,
+      "noToolErrors": false,
+      "planningArgumentCharacters": 12410,
+      "planningCalls": [
+        {
+          "tool": "agent_teams_create",
+          "failed": false
+        },
+        {
+          "tool": "agent_teams_edit_plan",
+          "failed": false
+        }
+      ],
+      "allToolErrors": [
+        {
+          "tool": "agent_teams_status",
+          "error": "you do not lead or belong to any active team yet"
+        },
+        {
+          "tool": "pwsh",
+          "error": "SetNamedSecurityInfoW failed (Win32 5): grantWrite([temporary workspace])"
+        },
+        {
+          "tool": "pwsh",
+          "error": "SetNamedSecurityInfoW failed (Win32 5): grantWrite([temporary workspace])"
+        },
+        {
+          "tool": "pwsh",
+          "error": "SetNamedSecurityInfoW failed (Win32 5): grantWrite([temporary workspace])"
+        },
+        {
+          "tool": "pwsh",
+          "error": "SetNamedSecurityInfoW failed (Win32 5): grantWrite([temporary workspace])"
+        }
+      ],
+      "seconds": 144.348,
+      "outputTokens": 23615,
+      "generalFieldsReceivedBeforeSpecific": true,
+      "taskCount": 4,
+      "phase": "staged",
+      "unspawned": true,
+      "traceSha256": "ea6c82a3482a50aa02f99e73c6c893d8fa1169ec506fd0f623ebea0014312b4b"
+    },
+    {
+      "name": "dev8-captain-2",
+      "plugin": "0.2.5-dev.8",
+      "passed": true,
+      "stage": "captain-planning",
+      "requests": 10,
+      "planningFirstPass": true,
+      "noToolErrors": false,
+      "planningArgumentCharacters": 15061,
+      "planningCalls": [
+        {
+          "tool": "agent_teams_create",
+          "failed": false
+        },
+        {
+          "tool": "agent_teams_edit_plan",
+          "failed": false
+        }
+      ],
+      "allToolErrors": [
+        {
+          "tool": "agent_teams_status",
+          "error": "you do not lead or belong to any active team yet"
+        },
+        {
+          "tool": "pwsh",
+          "error": "SetNamedSecurityInfoW failed (Win32 5): grantWrite([temporary workspace])"
+        },
+        {
+          "tool": "pwsh",
+          "error": "SetNamedSecurityInfoW failed (Win32 5): grantWrite([temporary workspace])"
+        },
+        {
+          "tool": "pwsh",
+          "error": "SetNamedSecurityInfoW failed (Win32 5): grantWrite([temporary workspace])"
+        },
+        {
+          "tool": "pwsh",
+          "error": "SetNamedSecurityInfoW failed (Win32 5): grantWrite([temporary workspace])"
+        }
+      ],
+      "seconds": 137.608,
+      "outputTokens": 24281,
+      "generalFieldsReceivedBeforeSpecific": true,
+      "taskCount": 4,
+      "phase": "staged",
+      "unspawned": true,
+      "traceSha256": "dc353ea223e3459d03717b1ef01bf2095049f208790e85b886afe2ab3d05e45a"
+    },
+    {
+      "name": "dev8-captain-3",
+      "plugin": "0.2.5-dev.8",
+      "passed": true,
+      "stage": "captain-planning",
+      "requests": 4,
+      "planningFirstPass": true,
+      "noToolErrors": false,
+      "planningArgumentCharacters": 10834,
+      "planningCalls": [
+        {
+          "tool": "agent_teams_create",
+          "failed": false
+        },
+        {
+          "tool": "agent_teams_edit_plan",
+          "failed": false
+        }
+      ],
+      "allToolErrors": [
+        {
+          "tool": "agent_teams_status",
+          "error": "you do not lead or belong to any active team yet"
+        }
+      ],
+      "seconds": 43.803,
+      "outputTokens": 7380,
+      "generalFieldsReceivedBeforeSpecific": true,
+      "taskCount": 3,
+      "phase": "staged",
+      "unspawned": true,
+      "traceSha256": "1372d3a76a330b0ff47d06fe9e7021da0b121115df3fce1d6264ef460878c7ac"
+    },
+    {
+      "name": "dev8-scratch-1",
+      "plugin": "0.2.5-dev.8",
+      "passed": true,
+      "stage": "planning-only",
+      "requests": 4,
+      "planningFirstPass": true,
+      "noToolErrors": true,
+      "planningArgumentCharacters": 9342,
+      "planningCalls": [
+        {
+          "tool": "agent_teams_plan_general",
+          "failed": false
+        },
+        {
+          "tool": "agent_teams_plan_specific",
+          "failed": false
+        }
+      ],
+      "allToolErrors": [],
+      "seconds": 58.511,
+      "outputTokens": 10131,
+      "generalFieldsReceivedBeforeSpecific": true,
+      "taskCount": 5,
+      "phase": "staged",
+      "unspawned": true,
+      "traceSha256": "f12015d3b09f3b0d4ab68e9d504360e9db67e67bedf4eaa402432a7a9897f733"
+    },
+    {
+      "name": "dev8-scratch-2",
+      "plugin": "0.2.5-dev.8",
+      "passed": true,
+      "stage": "planning-only",
+      "requests": 5,
+      "planningFirstPass": false,
+      "noToolErrors": false,
+      "planningArgumentCharacters": 11552,
+      "planningCalls": [
+        {
+          "tool": "agent_teams_plan_general",
+          "failed": true,
+          "error": "invalid arguments: \"tasks[1].assignee\" must be a string; \"tasks[4].assignee\" must be a string"
+        },
+        {
+          "tool": "agent_teams_plan_general",
+          "failed": false
+        },
+        {
+          "tool": "agent_teams_plan_specific",
+          "failed": false
+        }
+      ],
+      "allToolErrors": [
+        {
+          "tool": "agent_teams_plan_general",
+          "error": "invalid arguments: \"tasks[1].assignee\" must be a string; \"tasks[4].assignee\" must be a string"
+        }
+      ],
+      "seconds": 49.085,
+      "outputTokens": 8146,
+      "generalFieldsReceivedBeforeSpecific": true,
+      "taskCount": 5,
+      "phase": "staged",
+      "unspawned": true,
+      "traceSha256": "85a65af41f1bcbb5eb9ae29c1a429f016e791b82ec66daafefa7509c6726ba49"
+    },
+    {
+      "name": "dev8-scratch-3",
+      "plugin": "0.2.5-dev.8",
+      "passed": true,
+      "stage": "planning-only",
+      "requests": 4,
+      "planningFirstPass": true,
+      "noToolErrors": true,
+      "planningArgumentCharacters": 10333,
+      "planningCalls": [
+        {
+          "tool": "agent_teams_plan_general",
+          "failed": false
+        },
+        {
+          "tool": "agent_teams_plan_specific",
+          "failed": false
+        }
+      ],
+      "allToolErrors": [],
+      "seconds": 61.023,
+      "outputTokens": 10553,
+      "generalFieldsReceivedBeforeSpecific": true,
+      "taskCount": 5,
+      "phase": "staged",
+      "unspawned": true,
+      "traceSha256": "597a2aa23fa14ef5a8fcf11964648c1c9f4c692bc1dae1cc9fb5b8d7f1f4546c"
+    },
+    {
+      "name": "dev8-scratch-fixed-1",
+      "plugin": "0.2.5-dev.8",
+      "passed": true,
+      "stage": "planning-only",
+      "requests": 4,
+      "planningFirstPass": true,
+      "noToolErrors": true,
+      "planningArgumentCharacters": 7433,
+      "planningCalls": [
+        {
+          "tool": "agent_teams_plan_general",
+          "failed": false
+        },
+        {
+          "tool": "agent_teams_plan_specific",
+          "failed": false
+        }
+      ],
+      "allToolErrors": [],
+      "seconds": 35.291,
+      "outputTokens": 5793,
+      "generalFieldsReceivedBeforeSpecific": true,
+      "taskCount": 5,
+      "phase": "staged",
+      "unspawned": true,
+      "traceSha256": "c71f764ac44c4701e86e44ba47e38069fa4236f41087dc1eb36175360f035a3b"
+    },
+    {
+      "name": "dev8-scratch-fixed-2",
+      "plugin": "0.2.5-dev.8",
+      "passed": true,
+      "stage": "planning-only",
+      "requests": 4,
+      "planningFirstPass": true,
+      "noToolErrors": true,
+      "planningArgumentCharacters": 7149,
+      "planningCalls": [
+        {
+          "tool": "agent_teams_plan_general",
+          "failed": false
+        },
+        {
+          "tool": "agent_teams_plan_specific",
+          "failed": false
+        }
+      ],
+      "allToolErrors": [],
+      "seconds": 46.707,
+      "outputTokens": 8147,
+      "generalFieldsReceivedBeforeSpecific": true,
+      "taskCount": 5,
+      "phase": "staged",
+      "unspawned": true,
+      "traceSha256": "35759f44d119dabc627824478f5d5b68a55127c0c96b9a8d380b270f10cf81b9"
+    },
+    {
+      "name": "dev8-scratch-fixed-3",
+      "plugin": "0.2.5-dev.8",
+      "passed": true,
+      "stage": "planning-only",
+      "requests": 4,
+      "planningFirstPass": true,
+      "noToolErrors": true,
+      "planningArgumentCharacters": 7811,
+      "planningCalls": [
+        {
+          "tool": "agent_teams_plan_general",
+          "failed": false
+        },
+        {
+          "tool": "agent_teams_plan_specific",
+          "failed": false
+        }
+      ],
+      "allToolErrors": [],
+      "seconds": 41.12,
+      "outputTokens": 6634,
+      "generalFieldsReceivedBeforeSpecific": true,
+      "taskCount": 5,
+      "phase": "staged",
+      "unspawned": true,
+      "traceSha256": "35de7f9a0f916c3081d4103bbd47e8ef4ccbc88fcbeead38c5d1ad29d6c26a6d"
+    },
+    {
+      "name": "dev8-template-1",
+      "plugin": "0.2.5-dev.8",
+      "passed": true,
+      "stage": "planning-only",
+      "requests": 3,
+      "planningFirstPass": true,
+      "noToolErrors": true,
+      "planningArgumentCharacters": 6239,
+      "planningCalls": [
+        {
+          "tool": "agent_teams_plan_specific",
+          "failed": false
+        }
+      ],
+      "allToolErrors": [],
+      "seconds": 41.06,
+      "outputTokens": 7339,
+      "generalFieldsReceivedBeforeSpecific": true,
+      "taskCount": 5,
+      "phase": "staged",
+      "unspawned": true,
+      "traceSha256": "6172dea0e84d322df5e65537309ed8a8ac0d83d5a8111404c0cb00be5a1fde0b"
+    },
+    {
+      "name": "dev8-template-2",
+      "plugin": "0.2.5-dev.8",
+      "passed": true,
+      "stage": "planning-only",
+      "requests": 3,
+      "planningFirstPass": true,
+      "noToolErrors": true,
+      "planningArgumentCharacters": 5460,
+      "planningCalls": [
+        {
+          "tool": "agent_teams_plan_specific",
+          "failed": false
+        }
+      ],
+      "allToolErrors": [],
+      "seconds": 37.568,
+      "outputTokens": 6141,
+      "generalFieldsReceivedBeforeSpecific": true,
+      "taskCount": 5,
+      "phase": "staged",
+      "unspawned": true,
+      "traceSha256": "7d2b2bb5e1455fef75dad18882b328dad467fa11801cd2baef3708faa2d2465a"
+    },
+    {
+      "name": "dev8-template-3",
+      "plugin": "0.2.5-dev.8",
+      "passed": true,
+      "stage": "planning-only",
+      "requests": 3,
+      "planningFirstPass": true,
+      "noToolErrors": true,
+      "planningArgumentCharacters": 8966,
+      "planningCalls": [
+        {
+          "tool": "agent_teams_plan_specific",
+          "failed": false
+        }
+      ],
+      "allToolErrors": [],
+      "seconds": 46.083,
+      "outputTokens": 7361,
+      "generalFieldsReceivedBeforeSpecific": true,
+      "taskCount": 5,
+      "phase": "staged",
+      "unspawned": true,
+      "traceSha256": "0e28f5e699a0ff9ad119e4113c6108485a73b81effa4ffc617cfbad48c33e8f5"
+    }
+  ],
+  "artifacts": {
+    "dev7": {
+      "schema": 1,
+      "source": "4818f809d174e97dc2b58797580e068aa5c532f537018dc80a615667a0709b73",
+      "output": "10b07bb8d234ccfb08c26c64340bfe5263eca8a53ca7f7340383a60647995678",
+      "files": {
+        "tools": "6bd168317fb2b2d11ce9f21ba4537f144508cb64312365e406acec3eee0b3300",
+        "workflow-native": "eb7cc7a4685748475dc08b65911bdf94055446cdf1fcfd32c2e08f329d2849f3"
+      }
+    },
+    "dev8NativeCandidate": {
+      "schema": 1,
+      "source": "db62b1a8b706e38cd5e78a25b03d378816be4201aa616fa06acd7d04b5b88ef7",
+      "output": "06bb2887458429143c2523bb87913b272a59f8a524470c1e06a22115c682ae28",
+      "files": {
+        "tools": "1b4b85197dfdfb83c216bee1cbf95d8b3651119eb5af1a1c2aa5cc0f9f13930c",
+        "workflow-native": "bf4c041c3ad987d798a41af2425bfb95fd3a6dedc42ae89e8831d633bd138657",
+        "workflow-planning": "19544586a1bd7adf2f6ac6d319049c9439406c124d905a78db11d74de00e5ab0"
+      }
+    },
+    "dev8Captain": {
+      "schema": 1,
+      "source": "eeb331b016dd568584f7e76208b966d2185f5296842c2607d8c3667800010164",
+      "output": "0d18e77c0c1b4426ee0ac5240dbb9e8180884fcb8b93551e401de1f575c12442",
+      "files": {
+        "tools": "7a382a839dd2ba6ae981520b9a0f2190f4b36543d907121d63db0d2060400c29",
+        "workflow-native": "bf4c041c3ad987d798a41af2425bfb95fd3a6dedc42ae89e8831d633bd138657",
+        "workflow-planning": "19544586a1bd7adf2f6ac6d319049c9439406c124d905a78db11d74de00e5ab0"
+      }
+    },
+    "dev8Final": {
+      "schema": 1,
+      "source": "b188b10214cd0d9c8087e8fa9effda57af06ae605de320e209310e26e26111cf",
+      "output": "ebf7d16423f3c3e7227ce1f60b9af4145d0f4d21762135c7d4b15bb59c7e6100",
+      "files": {
+        "tools": "7a382a839dd2ba6ae981520b9a0f2190f4b36543d907121d63db0d2060400c29",
+        "workflow-native": "ba0e88b4c46e7436ea5063a0aec1f8c9a8e0cdc04af054f7fc5b3ea7166add00",
+        "workflow-planning": "a16e94bbf05bd008247f48ff9377ee1972b4c7f40afa5c9b9cf52d6c5caa7eab"
+      }
+    },
+    "dev8Release": {
+      "schema": 1,
+      "source": "9a66c4345b82052cafe825616f9175a3bffb9b72ea8a79ec23e8551061a83b52",
+      "output": "ebf7d16423f3c3e7227ce1f60b9af4145d0f4d21762135c7d4b15bb59c7e6100",
+      "files": {
+        "tools": "7a382a839dd2ba6ae981520b9a0f2190f4b36543d907121d63db0d2060400c29",
+        "workflow-native": "ba0e88b4c46e7436ea5063a0aec1f8c9a8e0cdc04af054f7fc5b3ea7166add00",
+        "workflow-planning": "a16e94bbf05bd008247f48ff9377ee1972b4c7f40afa5c9b9cf52d6c5caa7eab"
+      }
+    }
+  }
+}

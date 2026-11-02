@@ -35,6 +35,7 @@ function discussion(value: unknown): boolean {
   if (!record(value) || !string(value['key'])) return false
   if (value['splitLayers'] !== undefined && typeof value['splitLayers'] !== 'boolean') return false
   if(value['templateDraft']!==undefined){const d=value['templateDraft'];if(!record(d)||!string(d['base']))return false;try{parseTemplate(d['definition'])}catch{return false}}
+  if(value['generalDraft']!==undefined){const d=value['generalDraft'];if(!record(d)||!['id','base','title'].every(k=>string(d[k]))||!Array.isArray(d['operations'])||!d['operations'].length||!d['operations'].every(op=>operation(op)&&record(op)&&['add_member','add_task'].includes(op['action'] as string)))return false}
   if (!['contextBase', 'materials', 'evidence'].every(key => optionalString(value[key]))) return false
   if (value['materialsRound'] !== undefined && !positive(value['materialsRound'])) return false
   if (value['native'] !== undefined) {

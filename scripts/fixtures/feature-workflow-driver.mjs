@@ -3,23 +3,27 @@ import { readFileSync, writeFileSync, appendFileSync, existsSync } from 'node:fs
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { spawnSync } from 'node:child_process';
+import { createUserMessage } from '@deepseek-ai/dsh-llm';
 export const name = 'feature-workflow-trial';
 export const inject = ['llm', 'agents', 'sessions', 'webServer', 'connection', 'workspaceRegistry'];
 export function apply(ctx) {
     ctx.effect(() => ctx.webServer.register({ kind: 'exact', path: '/', handler(req, res) { if (!ctx.connection.authorizeIndex(req, res))
             return; res.writeHead(200, { 'content-type': 'text/plain' }); res.end('Workflow trial'); } }));
     const parallel = process.env.WORKFLOW_TRIAL_PARALLEL === '1', resume = process.env.WORKFLOW_TRIAL_RESUME === '1';
+    const planningOnly=process.env.WORKFLOW_TRIAL_PLANNING_ONLY==='1',fromScratch=process.env.WORKFLOW_TRIAL_FROM_SCRATCH==='1';
+    const captainPlanning=process.env.WORKFLOW_TRIAL_CAPTAIN_PLANNING==='1';
     const report = process.env.WORKFLOW_TRIAL_REPORT, events = [];
     const overlaps = new Set(); let observed = false;
     const pairs = [['requirements','impact'],['implementation','test-preparation'],['verification','code-review']];
     let requests = resume ? readFileSync(join(report,'trace.jsonl'),'utf8').trim().split('\n').map(JSON.parse).filter(e=>e.event==='model-request').length : 0, stage = 'startup', state;
     if(resume) for(const e of readFileSync(join(report,'trace.jsonl'),'utf8').trim().split('\n').map(JSON.parse))if(e.tasks)for(const pair of pairs)if(pair.every(id=>e.tasks.some(t=>t.id===id&&['claimed','in_progress'].includes(t.status))))overlaps.add(pair.join('+'));
     const record = e => { events.push({ ...e, at: Date.now() }); appendFileSync(join(report, 'trace.jsonl'), JSON.stringify(events.at(-1)) + '\n'); };
-    ctx.on('llm/stream', async function* (options, next) { if (++requests > (parallel ? 110 : 70))
-        throw Error('Trial request budget exhausted'); record({ event: 'model-request', request: requests, provider: options.provider, model: options.model, sessionId: options.sessionId }); try {
+    ctx.on('llm/stream', async function* (options, next) { if (++requests > (planningOnly ? 12 : parallel ? 110 : 70))
+        throw Error('Trial request budget exhausted'); record({ event: 'model-request', request: requests, provider: options.provider, model: options.model, sessionId: options.sessionId, ...(planningOnly ? {messages:options.messages} : {}) }); try {
         for await (const chunk of next()) {
             if (chunk.type === 'text-delta')
                 record({ event: 'text', text: chunk.text });
+            if (chunk.type === 'usage') record({event:'usage',usage:chunk.usage});
             yield chunk;
         }
     }
@@ -38,7 +42,7 @@ export function apply(ctx) {
         await ctx.get('loader').await();
         await ctx.workspaceRegistry.create(process.cwd(), 'Feature workflow trial');
         const prior = resume ? JSON.parse(readFileSync(join(report,'adapted.json'),'utf8')) : undefined;
-        const handle = resume ? await ctx.agents.resume({resumeSessionId:prior.team.captainSessionId,agentOptions:{provider:'deepseek-account',model:'deepseek-flash',reasoningEffort:'high'}}) : await ctx.agents.create({ sessionId: 'session-feature-' + Date.now(), meta: { cwd: process.cwd() }, agentOptions: { provider: 'deepseek-account', model: 'deepseek-flash', reasoningEffort: 'high' } });
+        const handle = resume ? await ctx.agents.resume({resumeSessionId:prior.team.captainSessionId,agentOptions:{provider:'deepseek-account',model:'deepseek-flash',reasoningEffort:'high'}}) : await ctx.agents.create({ sessionId: 'session-feature-' + Date.now(), meta: { cwd: process.cwd() }, setup:agentCtx=>{if(captainPlanning)agentCtx.effect(()=>agentCtx.tools.restrict({allow:['agent_teams_create','agent_teams_edit_plan','agent_teams_status']}))}, agentOptions: { provider: 'deepseek-account', model: 'deepseek-flash', reasoningEffort: 'high' } });
         ctx.effect(() => () => handle.dispose());
         await bounded(handle.agent.whenIdle());
         const origin = 'http://127.0.0.1:' + ctx.webServer.port;
@@ -65,21 +69,47 @@ export function apply(ctx) {
                 throw Error('Task failed ' + id + ': ' + task.output);
             await new Promise(r => setTimeout(r, 1000));
         } while (Date.now() < deadline); throw Error('Task timeout ' + id); };
+        if(captainPlanning){
+          stage='captain-planning';
+          handle.agent.followup(createUserMessage({content:[{type:'text',text:'请用 TeamFlow 为下面的目标创建团队和完整任务计划，等待我最终确认后再执行。\n'+readFileSync('README.md','utf8')}],source:{kind:'user'}}));
+          await bounded(handle.agent.whenIdle());
+          await post('state');
+          assert.equal(state.team?.phase,'staged');
+          assert.ok(state.team.tasks.length>=2);
+          assert.ok(state.team.tasks.every(t=>t.status==='pending'&&!t.workflowConfigPending&&t.layers?.general.requirements.trim()&&t.layers?.specific.requirements.trim()));
+          assert.ok(state.team.members.every(m=>!m.id));
+          const calls=events.filter(e=>e.event==='tool-result');
+          assert.ok(calls.some(e=>e.name==='agent_teams_create'&&!e.isError&&e.arguments.plan?.tasks.every(t=>t.general&&!t.layers)),'Captain must use general-first create');
+          assert.ok(calls.some(e=>e.name==='agent_teams_edit_plan'&&!e.isError&&e.arguments.operations.every(op=>op.action==='update_task'&&op.specific&&!op.layers)),'Captain must specialize through edit_plan');
+          record({event:'planning-only-passed'});
+          writeFileSync(join(report,'result.json'),JSON.stringify({passed:true,stage,requests,captainPlanning,team:state.team},null,2));
+          ctx.get('appExit')(0);return;
+        }
         if(!resume){
         stage = 'apply-template';
-        await post('template_apply', { templateId: 'builtin-feature', version: parallel ? 2 : 1, name: parallel ? '并行端口输入校验' : '端口输入校验', description: readFileSync('README.md', 'utf8') });
+        if(fromScratch)await post('create',{name:'端口输入校验',description:readFileSync('README.md','utf8')+'\nCreate a five-node workflow: requirements, scope-review (human), implementation, verification, acceptance (human), in that dependency order. Use suitable members for analysis, implementation and independent verification. Generate the reusable general contracts first, then the complete instance contracts. Do not execute.'});
+        else await post('template_apply', { templateId: 'builtin-feature', version: parallel ? 2 : 1, name: parallel ? '并行端口输入校验' : '端口输入校验', description: readFileSync('README.md', 'utf8') });
         teamId = state.team.id;
         const topology = state.team.tasks.map(t => ({ id: t.id, dependencies: t.dependencies, general: t.layers.general }));
         await post('start', {}, 409);
-        await discussion('adapt');
-        const proposal = state.team.workflow.discussions['discussion:adapt'].proposal;
+        const planningKey=fromScratch?'graph':'adapt';
+        await discussion(planningKey);
+        const proposal = state.team.workflow.discussions['discussion:'+planningKey].proposal;
         assert.equal(proposal?.status, 'pending', 'Adaptation must produce a pending proposal');
         assert.ok(state.team.tasks.every(t => !t.layers.specific.requirements), 'Generation must not overwrite without confirmation');
-        await post('apply', { discussion: 'adapt', proposalId: proposal.id });
-        assert.deepEqual(state.team.tasks.map(t => ({ id: t.id, dependencies: t.dependencies, general: t.layers.general })), topology);
+        await post('apply', { discussion: planningKey, proposalId: proposal.id });
+        if(!fromScratch)assert.deepEqual(state.team.tasks.map(t => ({ id: t.id, dependencies: t.dependencies, general: t.layers.general })), topology);
+        else assert.equal(state.team.tasks.length,5);
         assert.ok(state.team.tasks.every(t => !t.workflowConfigPending));
         assert.ok(state.team.members.every(m => !m.id));
         writeFileSync(join(report, 'adapted.json'), JSON.stringify(state, null, 2));
+        if(planningOnly){
+          assert.equal(state.team.phase,'staged');assert.ok(state.team.tasks.every(t=>t.status==='pending'));
+          assert.ok(state.team.tasks.every(t=>t.layers.general.requirements.trim()&&t.layers.specific.requirements.trim()));
+          record({event:'planning-only-passed'});
+          writeFileSync(join(report,'result.json'),JSON.stringify({passed:true,stage:'planning-only',requests,fromScratch,team:state.team},null,2));
+          ctx.get('appExit')(0);return;
+        }
         }
         observed = true;
         if(resume) await post('state'); else await post('start');

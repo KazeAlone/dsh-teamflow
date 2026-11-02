@@ -47,7 +47,7 @@ async function mountCodeRuntime(host, workspace) {
 const { createScope } = await import(pathToFileURL(requireTools.resolve('@deepseek-ai/dsh-scope')).href)
 
 function assertCaptainProtocol(system) {
-  for (const rule of [/the user's goal as description/, /attempt_id/, /never approve in that planning turn/i, /Never approve your own implementation/, /depend on a failed task/, /Resume only on a later explicit user request/]) assert.match(system, rule)
+  for (const rule of [/the user's goal as description/, /attempt_id/, /never approve in (?:that|the) planning turn/i, /Never approve your own implementation/, /depend on a failed task/, /Resume only on a later explicit user request/]) assert.match(system, rule)
 }
 
 test('stable tool presentation uses real scoped registry and prompt assembly', async t => {

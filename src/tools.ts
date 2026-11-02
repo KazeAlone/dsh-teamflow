@@ -18,7 +18,7 @@ import type { JsonValue } from '@deepseek-ai/dsh-util-values'
 import { defineTool } from '@deepseek-ai/dsh-tools'
 import type { ToolRunContext } from '@deepseek-ai/dsh-tools'
 import { join } from 'node:path'
-import { taskNeedsConfiguration, parseLayers, taskText, taskLayersParameter, type TaskLayers } from './task-layers.ts'
+import { taskNeedsConfiguration, parseLayers, parseBrief, emptyBrief, briefParameter, taskText, taskLayersParameter, type TaskLayers } from './task-layers.ts'
 import { appendTeamEvent, captainSessionOf } from './events.ts'
 import {
   amendTaskContract,
@@ -139,6 +139,8 @@ export type StagedPlanMutation =
       taskId: string
       subject: string
       layers?: TaskLayers
+      specific?: import('./task-layers.ts').TaskBrief
+      expectedGeneral?: import('./task-layers.ts').TaskBrief
       description?: string | null
       assignee?: string | null
       dependencies: string[]
@@ -298,15 +300,24 @@ function requireMember(team: TeamState, name: string): TeamMember {
 }
 
 /** Look up one task by id. */
-function requireTask(team: TeamState, taskId: string): TeamTask {
+function requireTask(team: TeamState, taskId: string, allowConfiguration = false): TeamTask {
   const task = team.tasks.find((candidate) => candidate.id === taskId)
   if (task === undefined) {
     throw new Error(`no task "${taskId}" in team "${team.name}" — use agent_teams_status to list tasks`)
   }
   if (task.checkpoint) throw new Error('human checkpoint: only the workflow review UI can approve or reject it')
-  if (taskNeedsConfiguration(task)) throw new Error('task configuration is incomplete; finish configuration in the workflow UI')
+  if (!allowConfiguration && taskNeedsConfiguration(task)) throw new Error('task configuration is incomplete; finish configuration in the workflow UI')
   if (task.workflowPaused) throw new Error('task paused for human editing; resume it in the workflow UI')
   return task
+}
+
+/** Re-send the saved contracts after creation or recovery, including durable IDs. */
+function captainPlanningContext(team: TeamState): string | undefined {
+  if (team.phase !== 'staged') return
+  const tasks = team.tasks.filter(task => !task.checkpoint && task.layers?.general.requirements && !task.layers.specific.requirements)
+  if (!tasks.length) return
+  return JSON.stringify({ goal: team.description ?? '', tasks: tasks.map(task => ({ task_id: task.id, subject: task.subject, assignee: task.assignee, dependencies: task.dependencies, general: task.layers!.general })),
+    instructions: 'Continue directly with agent_teams_edit_plan. For each listed task submit action=update_task, task_id and specific={requirements,deliverables,acceptance}. Each field is text. Concretize ALL general constraints for this goal into a complete standalone instance contract. Do not send general, layers or description. Do not ask for intermediate approval; the user reviews the completed plan once.' })
 }
 
 function requireStagedTeam(team: TeamState): void {
@@ -767,7 +778,11 @@ export function registerAgentTeamsTools(ctx: Context, config: ToolsConfig): Agen
             member.toolFilter = selected.toolFilter
           }
         } else if (mutation.action === 'update_task') {
-          const task = requireTask(fresh, mutation.taskId)
+          const task = requireTask(fresh, mutation.taskId, mutation.layers !== undefined || mutation.specific !== undefined)
+          if(mutation.specific){
+            if(!task.layers || JSON.stringify(task.layers.general)!==JSON.stringify(mutation.expectedGeneral))throw new Error('General contract changed; read the task again before specializing it.')
+            mutation.layers={general:structuredClone(task.layers.general),specific:parseBrief(mutation.specific)}
+          }
           if (task.layers && mutation.layers === undefined && mutation.description !== task.description) throw new Error('分层任务请通过 layers 修改通用层和本次层')
           if (task.status !== 'pending' || (task.attempt ?? 0) !== 0 || task.reassigning === true) {
             throw new Error(`task "${task.id}" has already started and cannot be edited`)
@@ -848,6 +863,7 @@ export function registerAgentTeamsTools(ctx: Context, config: ToolsConfig): Agen
     const approved = await withTeamLock(teamLockKey(stateRoot, teamId), async () => {
       const fresh = await requireFreshCaptainTeam(ctx, stateRoot, teamId, captain.id)
       requireStagedTeam(fresh)
+      if(Object.entries(fresh.workflow?.discussions??{}).some(([slot,d])=>slot===`discussion:${d.key}`&&d.generalDraft))throw new Error('请先完成两阶段任务生成并确认，或放弃草稿')
       if (Object.values(fresh.workflow?.discussions ?? {}).some(d => d.proposal?.status === 'pending')) throw new Error('请先在画布中处理待确认的修改，再启动流程')
       // A staged removal has no child session to retain in history. Drop those
       // placeholders before transitioning to the stricter running shape.
@@ -974,7 +990,7 @@ export function registerAgentTeamsTools(ctx: Context, config: ToolsConfig): Agen
           } } },
           tasks: { type: 'array', required: true, items: { type: 'object', additionalProperties: false, properties: {
             id: { type: 'string', required: true, description: 'Local reference used by dependencies in this plan; the result maps it to a durable task id.' },
-            subject: { type: 'string', required: true }, layers: taskLayersParameter, description: { type: 'string' }, assignee: { type: 'string' },
+            subject: { type: 'string', required: true }, general: { ...briefParameter, description: 'Stage 1: reusable requirements, deliverables and acceptance. Requires approval=required. Then fill specific through edit_plan; do not generate both layers in this call.' }, layers: taskLayersParameter, description: { type: 'string' }, assignee: { type: 'string' },
             dependencies: { type: 'array', items: { type: 'string' } },
           } } },
         },
@@ -997,6 +1013,7 @@ export function registerAgentTeamsTools(ctx: Context, config: ToolsConfig): Agen
           phase: { type: 'string', required: true },
           profile: { type: 'string' },
           task_planning: { type: 'string' },
+          planning_context: { type: 'string' },
           members: { type: 'array', items: { type: 'object', additionalProperties: false, properties: { member_name: { type: 'string', required: true }, member_id: { type: 'string', required: true }, member_role: { type: 'string' }, provider: { type: 'string', required: true }, model: { type: 'string', required: true }, reasoning_effort: { type: 'string' }, tool_policy: { type: 'string' }, status: { type: 'string', required: true } } } },
           tasks: { type: 'array', items: { type: 'object', additionalProperties: false, properties: { task_id: { type: 'string', required: true }, seed_id: { type: 'string', required: true }, subject: { type: 'string', required: true }, status: { type: 'string', required: true }, kind: { type: 'string' }, assignee: { type: 'string' }, dependencies: { type: 'array', items: { type: 'string' }, required: true } } } },
         },
@@ -1006,7 +1023,8 @@ export function registerAgentTeamsTools(ctx: Context, config: ToolsConfig): Agen
         text: (value.phase === 'staged'
           ? `Team "${value.team_name}" plan created under ${value.state_dir}. It is staged: finish the roster and DAG, then wait for the user to edit and approve it. Do not start or approve it yourself.`
           : `Team "${value.team_name}" created (id ${value.team_id}) under ${value.state_dir}. You are the captain.`)
-          + (value.tasks === undefined ? '' : '\n' + value.tasks.map(task => `${task.task_id} [${task.seed_id}]: ${task.subject}; assignee=${task.assignee ?? 'unassigned'}; dependencies=${task.dependencies.join(',')}`).join('\n')),
+          + (value.tasks === undefined ? '' : '\n' + value.tasks.map(task => `${task.task_id} [${task.seed_id}]: ${task.subject}; assignee=${task.assignee ?? 'unassigned'}; dependencies=${task.dependencies.join(',')}`).join('\n'))
+          + (value.planning_context ? '\nStage 2 context (saved task data):\n' + value.planning_context : ''),
       }],
       // The conversation card folds this durable result, and the card cannot
       // reproduce the host's key cleaning for every name (issue #203). Publish
@@ -1043,7 +1061,14 @@ export function registerAgentTeamsTools(ctx: Context, config: ToolsConfig): Agen
       // Gateways materialize the optional `plan` object the same way (issue
       // #234): an empty shell carries no roster, so it is an omitted plan and
       // the profile / inline-plan exclusion below stays untouched.
-      const inlinePlan = args.plan !== undefined && !isEmptyInlinePlan(args.plan) ? args.plan : undefined
+      const inlinePlan = args.plan !== undefined && !isEmptyInlinePlan(args.plan) ? { ...args.plan, tasks: args.plan.tasks.map(({general, ...task}) => {
+        if(general === undefined)return task
+        if(!staged)throw new Error('Two-stage planning requires approval=required; specific contracts must be completed before execution.')
+        if(task.layers !== undefined || task.description !== undefined)throw new Error('Stage 1 tasks use general only; omit layers and description.')
+        const brief=parseBrief(general)
+        if(!brief.requirements)throw new Error('General requirements must not be empty.')
+        return {...task,layers:{general:brief,specific:emptyBrief()}}
+      }) } : undefined
       if (profileName !== undefined && inlinePlan !== undefined) throw new Error('choose either a configured profile or an inline plan')
       const created = await withTeamLock(captainLockKey(stateRoot, captain.id), async () => {
         const current = await findTeamByParticipant(stateRoot, captain.id, await leadIdentityOfAsync(ctx, captain.session))
@@ -1145,6 +1170,7 @@ export function registerAgentTeamsTools(ctx: Context, config: ToolsConfig): Agen
         phase: snapshot.phase ?? 'running',
         ...snapshot.profile === undefined ? {} : { profile: snapshot.profile.name },
         task_planning: snapshot.profile?.taskPlanning ?? 'seed',
+        ...captainPlanningContext(snapshot) ? { planning_context: captainPlanningContext(snapshot)! } : {},
         members: snapshot.members.map((member) => ({
           member_name: member.name,
           member_id: member.id,
@@ -1189,6 +1215,7 @@ export function registerAgentTeamsTools(ctx: Context, config: ToolsConfig): Agen
             task_id: { type: 'string', description: 'Task id for update_task or remove_task.' },
             subject: { type: 'string', description: 'Required for add_task; optional replacement for update_task.' },
             layers: taskLayersParameter,
+            specific: { ...briefParameter, description: 'Stage 2 for update_task: complete instance contract based on the saved general requirements and current goal. The server retains general. Do not send layers or description together with specific.' },
             description: { type: 'string', description: 'Legacy single-layer task description.' },
             assignee: { type: 'string', description: 'Optional task assignee; an empty string moves it to the shared pool.' },
             dependencies: { type: 'array', items: { type: 'string' }, description: 'Complete replacement dependency list for a task.' },
@@ -1249,13 +1276,18 @@ export function registerAgentTeamsTools(ctx: Context, config: ToolsConfig): Agen
         if (operation.action === 'update_task') {
           const taskId = operation.task_id?.trim() ?? ''
           if (taskId === '') throw new Error(`${label} requires task_id`)
-          const task = requireTask(team, taskId)
+          const task = requireTask(team, taskId, operation.specific !== undefined)
+          if(operation.specific !== undefined && (operation.layers !== undefined || operation.description !== undefined))throw new Error(`${label}: specific cannot be combined with layers or description`)
+          if(operation.specific !== undefined && !task.layers?.general.requirements.trim())throw new Error(`${label}: create the general contract first`)
+          const specific=operation.specific === undefined ? undefined : parseBrief(operation.specific, `${label}.specific`)
+          if(specific && !specific.requirements)throw new Error(`${label}.specific.requirements must contain the complete instance contract`)
           return {
             action: 'update_task',
             taskId,
             subject: operation.subject ?? task.subject,
             description: operation.description ?? task.description,
             layers: operation.layers === undefined ? undefined : parseLayers(operation.layers),
+            ...(specific?{specific,expectedGeneral:structuredClone(task.layers!.general)}:{}),
             assignee: operation.assignee ?? task.assignee,
             dependencies: operation.dependencies ?? task.dependencies,
           }
@@ -2436,6 +2468,7 @@ export function registerAgentTeamsTools(ctx: Context, config: ToolsConfig): Agen
         team_id: team.id,
         team_name: team.name,
         description: team.description ?? '',
+        ...identity.kind === 'captain' && captainPlanningContext(team) ? { planning_context: captainPlanningContext(team)! } : {},
         phase: team.phase ?? 'running',
         halted: loop.halted,
         escalated: loop.escalated,
@@ -2874,6 +2907,7 @@ function renderStatus(value: JsonValue): string {
   const team = value as {
     team_name: string
     description?: string
+    planning_context?: string
     profile?: { name: string; protocol?: string; task_planning?: string }
     viewer: string
     members: {
@@ -2912,6 +2946,7 @@ function renderStatus(value: JsonValue): string {
   ].filter((item): item is string => item !== undefined)
   const lines: string[] = [
     `Team "${team.team_name}"${team.description ? ` — ${team.description}` : ''}${flags.length > 0 ? ` [${flags.join(', ')}]` : ''}`,
+    ...team.planning_context ? ['Stage 2 context (saved task data):', team.planning_context] : [],
     ...team.profile === undefined ? [] : [`Profile: ${team.profile.name}${team.profile.task_planning ? ` [${team.profile.task_planning}]` : ''}${team.profile.protocol ? ` — ${team.profile.protocol}` : ''}`],
     ...team.loop_summary ? [`Loop: ${team.loop_state ?? ''} — ${team.loop_summary}`.replace(/^Loop:  — /u, 'Loop: ')] : [],
     `Viewing as: ${team.viewer}`,

@@ -56,6 +56,40 @@ const REAL_PLAN = {
   tasks: [{ id: 't1', subject: 'survey the roster', assignee: 'scout' }],
 }
 
+await test('captain creates general contracts first and specializes them without starting members', async () => {
+  const fixture=await mount()
+  try {
+    const captain=fixture.createCaptain('captain-two-stage')
+    const general={requirements:'Validate input against the agreed range',deliverables:'Implementation and tests',acceptance:'Boundary tests pass'}
+    const plan={members:[{name:'worker',summary:'Implement and test'}],tasks:[{id:'port',subject:'Port validation',assignee:'worker',dependencies:[],general}]}
+    const rejected=await fixture.execute(captain,{name:'Unsafe general only',approval:'automatic',plan})
+    assert.equal(rejected.isError,true)
+    const created=await fixture.execute(captain,{name:'Two stage',description:'Validate ports 1–65535',approval:'required',plan})
+    assert.equal(created.isError,false,JSON.stringify(created))
+    const id=created.value.team_id
+    let saved=await fixture.loadTeam(id)
+    const planning=JSON.parse(created.value.planning_context)
+    assert.equal(planning.goal,'Validate ports 1–65535')
+    assert.equal(planning.tasks[0].task_id,saved.tasks[0].id)
+    assert.deepEqual(planning.tasks[0].general,general)
+    assert.match(JSON.stringify(created.content),/Stage 2 context/)
+    const recovered=await fixture.executeTool(captain,'agent_teams_status',{})
+    assert.equal(recovered.isError,false,JSON.stringify(recovered))
+    assert.deepEqual(JSON.parse(recovered.value.planning_context),planning)
+    assert.match(JSON.stringify(recovered.content),/Stage 2 context/)
+    assert.equal(saved.phase,'staged');assert.equal(saved.tasks[0].layers.specific.requirements,'')
+    assert.ok(saved.tasks[0].workflowConfigPending);assert.equal(saved.members[0].id,'')
+    const early=await fixture.executeTool(captain,'agent_teams_approve',{})
+    assert.equal(early.isError,true)
+    const specific={requirements:'Accept only number integers 1–65535; reject other input',deliverables:'validator.mjs and tests',acceptance:'Check 1, 65535, 0, 65536 and non-number inputs'}
+    const edited=await fixture.executeTool(captain,'agent_teams_edit_plan',{operations:[{action:'update_task',task_id:saved.tasks[0].id,specific}]})
+    assert.equal(edited.isError,false,JSON.stringify(edited))
+    saved=await fixture.loadTeam(id)
+    assert.deepEqual(saved.tasks[0].layers,{general,specific})
+    assert.equal(saved.tasks[0].workflowConfigPending,false);assert.equal(saved.phase,'staged');assert.equal(saved.members[0].id,'')
+  } finally { await fixture.dispose() }
+})
+
 /**
  * Mount the real tool runtime over the shipped `agent_teams_create`.
  * @returns the dispatch helper plus real on-disk team readers.

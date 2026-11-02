@@ -56,6 +56,8 @@ export type StagedPlanMutation = {
     taskId: string;
     subject: string;
     layers?: TaskLayers;
+    specific?: import('./task-layers.ts').TaskBrief;
+    expectedGeneral?: import('./task-layers.ts').TaskBrief;
     description?: string | null;
     assignee?: string | null;
     dependencies: string[];

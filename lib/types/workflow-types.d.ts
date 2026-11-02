@@ -28,6 +28,7 @@ export type WorkflowOperation = {
     subject: string;
     description?: string;
     layers?: import('./task-layers.ts').TaskLayers;
+    adaptationIssue?: string;
     assignee?: string;
     dependencies: string[];
     checkpoint?: boolean;
@@ -89,7 +90,14 @@ export interface DiscussionMessage {
     text: string;
     at: number;
 }
+export interface GeneralPlanDraft {
+    id: string;
+    base: string;
+    title: string;
+    operations: WorkflowOperation[];
+}
 export interface WorkflowDiscussion {
+    generalDraft?: GeneralPlanDraft;
     splitLayers?: boolean;
     templateDraft?: {
         base: string;

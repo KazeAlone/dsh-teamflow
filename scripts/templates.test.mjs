@@ -12,7 +12,8 @@ import { taskSplitBlock, validateTaskSplit } from '../lib/task-split.js'
 import { resolveTeamProfile } from '../lib/profiles.js'
 import { taskText, emptyBrief, taskNeedsConfiguration, requireGeneratedTaskLayers, parseLayers } from '../lib/task-layers.js'
 import { applyWorkflowOperations, workflowFingerprint, checkpointReady, parseWorkflowOperations } from '../lib/workflow.js'
-import { isTeamTask, createTeamDir, readTeam } from '../lib/state.js'
+import { isTeamTask, createTeamDir, readTeam, writeTeam } from '../lib/state.js'
+import { createGeneralDraft } from '../lib/workflow-planning.js'
 import { installWorkflowWorkbench } from '../lib/workflow-runtime.js'
 import { isWorkflowState } from '../lib/workflow-validation.js'
 import { memberPersona } from '../lib/members.js'
@@ -112,6 +113,20 @@ test('authenticated workflow handler applies templates once and leaves the sourc
   assert.equal((await call('template_apply',{templateId:template.id,version:1,name:'duplicate',description:'B'})).status,409)
   assert.equal(await readFile(join(state,'source','team.json'),'utf8'),before);assert.ok(await readTeam(state,result.team.id))
   const renamed=structuredClone(result.team);renamed.description='new target';assert.notEqual(workflowFingerprint(renamed),result.base)
+  const staged=await readTeam(state,result.team.id)
+  const draft=createGeneralDraft(staged,'Extra step',[],[{id:'extra',subject:'Extra task',dependencies:[],...general}],8)
+  staged.workflow.discussions['discussion:graph']={key:'graph',messages:[],calls:[],generalDraft:draft}
+  await writeTeam(state,staged)
+  assert.equal((await call('dismiss',{teamId:staged.id,discussion:'graph',generalDraftId:'stale'})).status,409)
+  assert.equal((await readTeam(state,staged.id)).workflow.discussions['discussion:graph'].generalDraft.id,draft.id)
+  staged.workflow.discussions['discussion:graph'].proposal={...draft,status:'pending',createdAt:Date.now()}
+  await writeTeam(state,staged)
+  assert.equal((await call('dismiss',{teamId:staged.id,discussion:'graph',generalDraftId:draft.id})).status,409,'A late draft discard cannot dismiss a completed proposal')
+  delete staged.workflow.discussions['discussion:graph'].proposal;await writeTeam(state,staged)
+  assert.equal((await call('dismiss',{teamId:staged.id,discussion:'graph',generalDraftId:draft.id})).status,200)
+  const discarded=await readTeam(state,staged.id)
+  assert.equal(discarded.workflow.discussions['discussion:graph'].generalDraft,undefined)
+  assert.deepEqual(discarded.tasks,staged.tasks)
 })
 
 
