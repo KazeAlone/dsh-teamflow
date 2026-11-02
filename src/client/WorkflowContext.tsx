@@ -3,14 +3,13 @@ import { useWorkflowText } from './workflow-i18n.tsx'
 import type { TeamState, TeamTask } from '../types.ts'
 import css from './WorkflowWorkbench.module.css'
 import { taskReadiness } from './task-readiness.ts'
-import { TaskLayersView } from './TaskLayersEditor.tsx'
 
 
 export function TaskRecord({ task, team, expanded = false, showContract = true }: { task: TeamTask; team: TeamState; expanded?: boolean; showContract?: boolean }) {
   const l = useWorkflowText()
 
   return <details className={css.contextTask} open={expanded || task.status === 'in_progress'}><summary>{!showContract && l("执行记录 · ")}{task.subject} · {taskReadiness(team,task,l).label}</summary>
-    {showContract && (task.layers?<TaskLayersView layers={task.layers} issue={task.adaptationIssue}/>:<p>{task.description || l("未单独填写任务说明")}</p>)}
+    {showContract && (<p>{task.description || l("未单独填写任务说明")}</p>)}
     {task.workflowRerunContext && <details><summary>{l("本轮重跑依据")}</summary><p><strong>{l("上一轮结果：")}</strong>{task.workflowRerunContext.previousOutput || l("上一轮未提交结果")}</p><p><strong>{l("本轮新增要求：")}</strong>{task.workflowRerunContext.instructions}</p></details>}
     {task.workflowRerunRequired && <p><strong>{taskReadiness(team,task,l).label}：</strong>{taskReadiness(team,task,l).detail}</p>}
     <p><strong>{l("输入来自：")}</strong>{task.dependencies.map(id => team.tasks.find(t => t.id === id)?.subject ?? id).join('、') || l("无前置任务")}</p>

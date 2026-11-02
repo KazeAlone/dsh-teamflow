@@ -8,8 +8,7 @@ import css from './ProposalReview.module.css'
 import { TaskRerunImpact } from './TaskRerunPicker.tsx'
 
 export type ProposalReviewDraft = { operations: WorkflowOperation[]; included: boolean[] }
-export function ProposalReview({ team, proposal, base, busy, onApply, onDismiss, draft, onChange, fixedStructure=false, splitLayers=false }: {
-  splitLayers?: boolean
+export function ProposalReview({ team, proposal, base, busy, onApply, onDismiss, draft, onChange, fixedStructure=false }: {
   fixedStructure?: boolean
   team: TeamState; proposal: WorkflowProposal; base: string; busy: boolean;
   onApply: (operations: WorkflowOperation[]) => void; onDismiss: () => void;
@@ -32,11 +31,10 @@ export function ProposalReview({ team, proposal, base, busy, onApply, onDismiss,
     {!effective.length && <p role="status">{l("当前没有要应用的改动，可以继续编辑或放弃修改。")}</p>}
     {operations.map((operation, index) => {
       const comparison = reviewFields(original, operation, l)
-      if(splitLayers)for(const field of comparison.fields)field.editable=field.key.startsWith('layers.')
-      if(fixedStructure)for(const field of comparison.fields)field.editable=field.key.startsWith('layers.specific.')||field.key==='adaptationIssue'||field.key==='specificPrompt'
-      return <article key={index} className={css.operation} data-included={included[index]}><label className={css.include}><input type="checkbox" checked={included[index]} disabled={busy || fixedStructure || splitLayers} onChange={event => onChange({ operations, included: included.map((value, i) => i === index ? event.target.checked : value) })} />{l("应用此项 · ")}{comparison.title}</label>
+      if(fixedStructure)for(const field of comparison.fields)field.editable=field.key==='description'||field.key==='adaptationIssue'||field.key==='specificPrompt'
+      return <article key={index} className={css.operation} data-included={included[index]}><label className={css.include}><input type="checkbox" checked={included[index]} disabled={busy || fixedStructure} onChange={event => onChange({ operations, included: included.map((value, i) => i === index ? event.target.checked : value) })} />{l("应用此项 · ")}{comparison.title}</label>
         {operation.action === 'rerun_task' && <><p>{l("上一轮结果（自动提供给 Agent）：")}</p><pre>{original.tasks.find(task=>task.id===operation.id)?.output || l("上一轮未提交结果")}</pre><TaskRerunImpact tasks={original.tasks} taskId={operation.id} /></>}
-        {comparison.fields.filter(field=>!splitLayers || field.key.startsWith('layers.')).filter(field=>!fixedStructure || field.key.startsWith('layers.') || field.key==='adaptationIssue' || field.key==='specificPrompt').map(field => {
+        {comparison.fields.filter(field=>!fixedStructure || field.key==='description' || field.key==='adaptationIssue' || field.key==='specificPrompt').map(field => {
           const same = field.before === field.after
           return <section key={field.key} className={css.field} data-change={same ? 'same' : !field.before ? 'added' : !field.after ? 'removed' : 'changed'}><div className={css.fieldHeading}><strong>{field.label}</strong><span>{same ? l("= 相同") : !field.before ? l("+ 新增") : !field.after ? l("− 删除") : l("± 修改")}</span></div>
             <div className={css.pair}><div><span className={css.caption}>{l("之前")}</span><pre>{field.before || l("（空）")}</pre></div><label><span className={css.caption}>{l("之后")}{field.editable ? l(" · 可编辑") : ''}</span>{field.editable ? <textarea aria-label={l("{0} · {1} · 之后", comparison.title, field.label)} rows={Math.min(9, Math.max(2, field.after.split('\n').length))} value={field.after} disabled={busy || !included[index]} onChange={event => onChange({ included, operations: operations.map((op, i) => i === index ? setReviewField(op, field, event.target.value) : op) })} /> : <pre>{field.after || l("（空）")}</pre>}</label></div>

@@ -26,7 +26,7 @@ export function resetTaskForRerun(task: TeamTask, suspended: boolean, now: numbe
   for (const key of ['output','attemptId','handoffId','handoffFromMemberId','reassigning','verdict','findings','changedPaths','acceptanceResults','commandsRun','supplementalEvidence','reviewedAttempt','reviewedArtifacts','reviewedGaps','reviewedScope','reviewedDuringDrift','verdictStartSnapshot'] as const) delete task[key]
   if(task.checkpoint) task.checkpoint={round:task.checkpoint.round+1,history:task.checkpoint.history}
 }
-import { taskNeedsConfiguration } from './task-layers.ts'
+import { taskNeedsConfiguration } from './task-description.ts'
 import type { TeamState } from './types.ts'
 
 /** Ancestors before consumers; only rerun-invalidated nodes are released by this action. */

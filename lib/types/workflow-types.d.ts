@@ -27,7 +27,6 @@ export type WorkflowOperation = {
     id?: string;
     subject: string;
     description?: string;
-    layers?: import('./task-layers.ts').TaskLayers;
     adaptationIssue?: string;
     assignee?: string;
     dependencies: string[];
@@ -38,7 +37,6 @@ export type WorkflowOperation = {
     id: string;
     subject?: string;
     description?: string;
-    layers?: import('./task-layers.ts').TaskLayers;
     adaptationIssue?: string;
     assignee?: string;
     dependencies?: string[];
@@ -52,7 +50,6 @@ export type WorkflowOperation = {
     instructions?: string;
     subject?: string;
     description?: string;
-    layers?: import('./task-layers.ts').TaskLayers;
     adaptationIssue?: string;
     assignee?: string;
 } | {
@@ -90,15 +87,7 @@ export interface DiscussionMessage {
     text: string;
     at: number;
 }
-export interface GeneralPlanDraft {
-    id: string;
-    base: string;
-    title: string;
-    operations: WorkflowOperation[];
-}
 export interface WorkflowDiscussion {
-    generalDraft?: GeneralPlanDraft;
-    splitLayers?: boolean;
     templateDraft?: {
         base: string;
         definition: import('./templates.ts').TemplateDefinition;
@@ -127,6 +116,7 @@ export interface WorkflowDiscussion {
     materialsRound?: number;
 }
 export interface WorkflowState {
+    templateDefinition?: import('./templates.ts').TemplateDefinition;
     templateSource?: import('./templates.ts').TemplateSource;
     /** Accepted for old saved teams; no longer controls behavior. */
     mode?: 'manual' | 'assisted';

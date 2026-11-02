@@ -1,6 +1,5 @@
 import { sourceText, type WorkflowText } from './workflow-text.ts'
 import type { TeamState } from '../types.ts'
-import { layersFromDraft } from '../task-layers.ts'
 import type { WorkflowOperation } from '../workflow-types.ts'
 import { draftSource, initialEditorDraft, type EditorDraft, type EditorTarget } from './workbench-selection.ts'
 
@@ -51,7 +50,7 @@ export function propertyOperation(team: TeamState, target: EditorTarget, entry: 
   }
   const task = team.tasks.find(item => item.id === target.id)
   if (!task || task.status !== 'pending') throw new Error('已开始或已结束任务的草稿需单独处理；保存全部不会自动重跑。')
-  return {action:'update_task',id:task.id,subject:value['subject'],description:value['description'],...(task.layers||value['layered']==='yes'?{layers:layersFromDraft(value),adaptationIssue:value['adaptationIssue']??''}:{}),assignee:target.type === 'check' ? undefined : value['assignee']}
+  return {action:'update_task',id:task.id,subject:value['subject'],description:value['description'],adaptationIssue:value['adaptationIssue']??'',assignee:target.type === 'check' ? undefined : value['assignee']}
 }
 
 /** Editing a composer while its old message sends must never lose the new text. */

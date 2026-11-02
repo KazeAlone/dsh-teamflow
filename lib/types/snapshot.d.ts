@@ -70,7 +70,7 @@ export interface TeamActivitySnapshot {
     readonly captainSessionId: string;
     readonly phase: 'staged' | 'running';
     readonly workflowEnabled?: boolean;
-    readonly planReviewState?: 'generating' | 'awaiting_review' | 'awaiting_feedback';
+    readonly planReviewState?: 'awaiting_review' | 'awaiting_feedback';
     readonly halted?: boolean;
     readonly members: readonly TeamActivityMember[];
     readonly tasks: readonly TeamActivityTask[];

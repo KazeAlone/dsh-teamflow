@@ -1,15 +1,6 @@
 {
   "task": {
-    "general": {
-      "requirements": "Implement according to confirmed specifications",
-      "deliverables": "Implementation and evidence",
-      "acceptance": "Independent correctness checks"
-    },
-    "specific": {
-      "requirements": "Implement operator B according to confirmed specifications",
-      "deliverables": "B implementation and verification evidence",
-      "acceptance": "Independent B correctness checks"
-    }
+    "description": "Implement operator B according to confirmed specifications; deliver B implementation and verification evidence; Independent B correctness checks"
   },
   "sourceVersion": 1,
   "templateVersion": 2

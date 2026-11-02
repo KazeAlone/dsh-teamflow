@@ -22,7 +22,8 @@ import { FINDING_SEVERITIES, REVIEW_VERDICTS, TASK_KINDS, TERMINAL_TASK_STATUSES
 import { hasValidQualityTaskFields, isReviewPolicy, isValidFindingLine, normalizeBlankOptionalTaskFields } from './quality-gates.ts'
 import { teamLeadMatch, type LeadIdentity } from './lineage.ts'
 import { isCheckpoint, isStoppedAttempts, isWorkflowRerunContext, isWorkflowState } from './workflow-validation.ts'
-import { isTaskLayers } from './task-layers.ts'
+import { isTaskLayers, flattenLegacyTask } from './legacy-task-description.ts'
+import { parseTemplate } from './templates.ts'
 
 export {
   amendTaskContract,
@@ -845,7 +846,30 @@ function coerceTeamState(value: unknown, expectedId: string): TeamState | undefi
   if (!isRecord(value) || !Array.isArray(value['tasks'])) {
     return isTeamState(value, expectedId) ? value : undefined
   }
-  const tasks = (value['tasks'] as unknown[]).map((task) => {
+  let current = value
+  // Keep the template snapshot separately before flattening legacy task records.
+  if (isRecord(current['workflow'])) {
+    const workflow = structuredClone(current['workflow'])
+    if (isRecord(workflow['templateSource']) && Array.isArray(current['members']) && (current['tasks'] as unknown[]).length > 0 && !workflow['templateDefinition'] && (current['tasks'] as unknown[]).every(t => isRecord(t) && isTaskLayers(t['layers']))) {
+      const source = workflow['templateSource'] as Record<string, unknown>
+      workflow['templateDefinition'] = parseTemplate({ name: source['name'], description: '', tags: [], inputs: '', positions: Object.fromEntries(Object.entries(isRecord(workflow['positions']) ? workflow['positions'] : {}).filter(([key]) => (current['tasks'] as Record<string, unknown>[]).some(t => key === `task:${t['id']}`))),
+        members: (current['members'] as Record<string, unknown>[]).map(m => ({ name: m['name'], summary: m['summary'] ?? '', role: m['role'] ?? '', executionPrompt: m['executionPrompt'] ?? '' })),
+        tasks: (current['tasks'] as Record<string, unknown>[]).map(t => ({ id: t['id'], subject: t['subject'], assignee: t['checkpoint'] ? '' : t['assignee'] ?? '', dependencies: t['dependencies'], checkpoint: !!t['checkpoint'], general: (t['layers'] as import('./legacy-task-description.ts').TaskLayers).general })) })
+    }
+    // Retain old unsaved planning content as reviewable proposals. Fingerprints
+    // still require fresh discussion before an outdated suggestion can apply.
+    for (const discussion of Object.values(isRecord(workflow['discussions']) ? workflow['discussions'] : {})) {
+      if (!isRecord(discussion)) continue
+      const draft = discussion['generalDraft']
+      if (isRecord(draft) && Array.isArray(draft['operations']) && !discussion['proposal']) discussion['proposal'] = { ...draft, createdAt: current['createdAt'], status: 'pending' }
+      delete discussion['generalDraft']; delete discussion['splitLayers']
+      const proposal = discussion['proposal']
+      if (isRecord(proposal) && Array.isArray(proposal['operations'])) proposal['operations'] = proposal['operations'].map(op => isRecord(op) ? flattenLegacyTask(op) : op)
+    }
+    current = { ...current, workflow }
+  }
+  if (current['planReviewState'] === 'generating') current = { ...current, planReviewState: 'awaiting_review' }
+  const tasks = (current['tasks'] as unknown[]).map((task) => {
     if (!isRecord(task)) return task
     // Tolerate legacy dirty records instead of bricking the whole team on
     // reload: blank optional fields written by older builds (or by models that
@@ -853,9 +877,7 @@ function coerceTeamState(value: unknown, expectedId: string): TeamState | undefi
     // profileSeedId handling below and the tool-input normalization. The same
     // pass drops out-of-contract numeric sentinels such as `line: -1`
     // (issue #188), so an already-written bad record self-heals on read.
-    const cleaned = normalizeBlankOptionalTaskFields(task)
-    // Old instance layers may contain only a delta; require explicit regeneration or review.
-    if (isTaskLayers(cleaned['layers']) && (cleaned['specificContractVersion'] !== 1 || cleaned['specificSourceGoal'] !== (value['description'] ?? '')) && cleaned['status'] === 'pending') cleaned['workflowConfigPending'] = true
+    const cleaned = flattenLegacyTask(normalizeBlankOptionalTaskFields(task))
     if (cleaned['profileSeedId'] !== undefined && (typeof cleaned['profileSeedId'] !== 'string' || cleaned['profileSeedId'].trim() === '')) {
       const next = { ...cleaned }
       delete next['profileSeedId']
@@ -865,7 +887,7 @@ function coerceTeamState(value: unknown, expectedId: string): TeamState | undefi
   })
   // Early canvas builds saved explicit tN IDs without advancing taskSeq.
   // Recover the high-water mark before the original tools allocate another ID.
-  let taskSeq = value['taskSeq']
+  let taskSeq = current['taskSeq']
   if (typeof taskSeq === 'number' && Number.isSafeInteger(taskSeq) && taskSeq >= 0) {
     for (const task of tasks) {
       if (!isRecord(task) || typeof task['id'] !== 'string' || !/^t[1-9]\d*$/u.test(task['id'])) continue
@@ -873,7 +895,7 @@ function coerceTeamState(value: unknown, expectedId: string): TeamState | undefi
       if (Number.isSafeInteger(sequence) && sequence < Number.MAX_SAFE_INTEGER) taskSeq = Math.max(taskSeq as number, sequence)
     }
   }
-  const coerced = { ...value, tasks, taskSeq }
+  const coerced = { ...current, tasks, taskSeq }
   return isTeamState(coerced, expectedId) ? coerced : undefined
 }
 
@@ -933,7 +955,6 @@ export function describeTeamStateDefect(raw: unknown, expectedId: string): strin
     return `phase ${JSON.stringify(raw['phase'])} must be "staged" or "running"`
   }
   if (raw['planReviewState'] !== undefined
-    && raw['planReviewState'] !== 'generating'
     && raw['planReviewState'] !== 'awaiting_review'
     && raw['planReviewState'] !== 'awaiting_feedback') {
     return `planReviewState ${JSON.stringify(raw['planReviewState'])} is invalid`
@@ -1107,7 +1128,6 @@ function isTeamState(value: unknown, expectedId: string): value is TeamState {
     && (value['taskSeq'] as number) >= 0
     && (value['phase'] === undefined || value['phase'] === 'staged' || value['phase'] === 'running')
     && (value['planReviewState'] === undefined
-      || value['planReviewState'] === 'generating'
       || value['planReviewState'] === 'awaiting_review'
       || value['planReviewState'] === 'awaiting_feedback')
     && (value['approvedAt'] === undefined || isFiniteNumber(value['approvedAt']))

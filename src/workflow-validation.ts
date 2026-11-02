@@ -1,5 +1,5 @@
 /** Validate saved workflow data before native recovery or browser rendering. */
-import { isTaskLayers } from './task-layers.ts'
+import { isTaskLayers } from './legacy-task-description.ts'
 import { parseTemplate } from './templates.ts'
 const record = (value: unknown): value is Record<string, unknown> => value !== null && typeof value === 'object' && !Array.isArray(value)
 const string = (value: unknown): value is string => typeof value === 'string'
@@ -47,6 +47,7 @@ function discussion(value: unknown): boolean {
     && Array.isArray(value['calls']) && value['calls'].every(item => record(item) && ['system', 'input', 'provider', 'model'].every(key => string(item[key])) && optionalString(item['output']) && optionalString(item['error']) && number(item['at']))
 }
 export function isWorkflowState(value: unknown): boolean {
+  if(record(value) && value['templateDefinition']!==undefined){try{parseTemplate(value['templateDefinition'])}catch{return false}}
   if(record(value) && value['templateSource']!==undefined){const s=value['templateSource'];if(!record(s)||!string(s['id'])||!string(s['name'])||!positive(s['version']))return false}
   return record(value) && [undefined, 'manual', 'assisted'].includes(value['mode'] as string | undefined)
     && record(value['positions']) && Object.values(value['positions']).every(point => record(point) && number(point['x']) && number(point['y']))

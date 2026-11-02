@@ -2,7 +2,6 @@ import { sourceText, type WorkflowText } from './workflow-text.ts'
 /** Readable field comparisons and line diffs for human workflow approval. */
 import type { TeamState } from '../types.ts'
 import type { WorkflowOperation } from '../workflow-types.ts'
-import { emptyBrief } from '../task-layers.ts'
 
 const memberFields = ['summary', 'role', 'executionPrompt', 'specificPrompt', 'provider', 'model', 'reasoningEffort'] as const
 const taskFields = ['subject', 'description', 'assignee', 'dependencies'] as const
@@ -17,30 +16,19 @@ export function reviewFields(team: TeamState, operation: WorkflowOperation, l: W
   const original = isMember ? team.members.find(item => item.name === op['name']) : team.tasks.find(item => item.id === op['id'])
   const before = added ? {} : (original ?? {}) as unknown as Record<string, unknown>
   const keys: readonly string[] = operation.action === 'rerun_task' ? [...taskFields.filter(key => key !== 'dependencies' && op[key] !== undefined), 'instructions'] : operation.action === 'rework' ? ['taskIds', 'instructions'] : isMember ? [...(added ? ['name'] : []), ...memberFields] : [...(added && op['id'] ? ['id'] : []), ...taskFields]
-  const fields = keys.filter(key => !(key === 'description' && 'layers' in operation && operation.layers)).filter(key => !(key === 'assignee' && operation.action === 'add_task' && operation.checkpoint)).map(key => ({ key, label: l(labels[key] ?? key), before: show(before[key]), after: removed ? '' : show(op[key] === undefined && !added ? before[key] : op[key]), array: ['dependencies', 'taskIds'].includes(key), editable: !removed && key !== 'id' }))
+  const fields = keys.filter(key => !(key === 'assignee' && operation.action === 'add_task' && operation.checkpoint)).map(key => ({ key, label: l(labels[key] ?? key), before: show(before[key]), after: removed ? '' : show(op[key] === undefined && !added ? before[key] : op[key]), array: ['dependencies', 'taskIds'].includes(key), editable: !removed && key !== 'id' }))
   const name = String(isMember ? op['name'] : op['subject'] ?? before['subject'] ?? op['id'])
-  if('layers' in operation && operation.layers){
-    const prior=original && 'layers' in original ? original.layers : undefined
-    for(const layer of ['general','specific'] as const)for(const part of ['requirements','deliverables','acceptance'] as const){
-      fields.push({key:`layers.${layer}.${part}`,label:`${layer==='general'?l("通用"):l("本次")}${part==='requirements'?l("任务要求"):part==='deliverables'?l("交付物"):l("验收要求")}`,before:prior?.[layer][part]??'',after:operation.layers[layer][part],array:false,editable:!removed})
-    }
-  }
   if('adaptationIssue' in operation && operation.adaptationIssue!==undefined)fields.push({key:'adaptationIssue',label:l("需要确认的问题（处理后清空）"),before:show(before['adaptationIssue']),after:operation.adaptationIssue,array:false,editable:true})
   return { title: `${added ? l("新增") : removed ? l("删除") : operation.action === 'rerun_task' ? l("仅重跑") : operation.action === 'rework' ? l("返工") : l("修改")}${isMember ? l("成员") : operation.action === 'add_task' && op['checkpoint'] ? l("人工检查") : l("任务")} · ${name}`, fields:fields.map(f=>f.key==='specificPrompt'?{...f,label:l("本次补充指令")}:f) }
 }
 export function setReviewField(operation: WorkflowOperation, field: ReviewField, value: string): WorkflowOperation {
-  if(field.key.startsWith('layers.') && 'layers' in operation){
-    const [,layer,part]=field.key.split('.') as [string,'general'|'specific','requirements'|'deliverables'|'acceptance']
-    const layers=structuredClone(operation.layers??{general:emptyBrief(),specific:emptyBrief()});layers[layer][part]=value
-    return {...operation,layers}
-  }
   return { ...operation, [field.key]: field.array ? [...new Set(value.split(/[\n,，]+/u).map(item => item.trim()).filter(Boolean))] : value } as WorkflowOperation
 }
 export function reviewedOperations(team: TeamState, operations: WorkflowOperation[], included: boolean[]): WorkflowOperation[] {
   return operations.flatMap((operation, index) => {
     if (!included[index]) return []
     if (!operation.action.startsWith('update_')) return [operation]
-    if(operation.action==='update_task' && operation.layers)return [operation]
+    if(operation.action==='update_task' && operation.confirmConfiguration !== undefined)return [operation]
     const result: Record<string, unknown> = operation.action === 'update_member' ? { action: operation.action, name: operation.name } : { action: operation.action, id: (operation as Extract<WorkflowOperation, { action: 'update_task' }>).id }
     for (const field of reviewFields(team, operation).fields) if (field.before !== field.after) result[field.key] = (operation as unknown as Record<string, unknown>)[field.key]
     return Object.keys(result).length > 2 ? [result as unknown as WorkflowOperation] : []

@@ -585,15 +585,12 @@ try {
       && stagedDynamic.members.every(member => member.id === '')
       && stagedDynamic.tasks.length === 0)
   const deliveriesBeforePlan = deliveries.length
-  const initialLayers = { general: { requirements: 'Analyze inputs before implementation', deliverables: 'Analysis', acceptance: 'Record unresolved questions' }, specific: { requirements: 'Analyze operator B', deliverables: 'B analysis', acceptance: 'Confirm B inputs' } }
-  const dynamicFirst = await call('agent_teams_create_task', { subject: 'analyze goal', assignee: 'analyst', layers: initialLayers })
-  check('initial task creation persists reusable and specific contracts', (await readTeam(stateRoot, 'dynamic-demo')).tasks[0].layers.general.requirements === initialLayers.general.requirements)
-  await call('agent_teams_edit_plan', { operations: [{ action: 'update_task', task_id: dynamicFirst.task_id, layers: { ...initialLayers, specific: { ...initialLayers.specific, acceptance: 'Confirm B shapes' } } }] })
+  const initialDescription = 'Analyze operator B inputs before implementation, deliver B analysis and record unresolved questions. Confirm B inputs.'
+  const dynamicFirst = await call('agent_teams_create_task', { subject: 'analyze goal', assignee: 'analyst', description: initialDescription })
+  check('initial task creation persists one complete description', (await readTeam(stateRoot, 'dynamic-demo')).tasks[0].description === initialDescription)
+  await call('agent_teams_edit_plan', { operations: [{ action: 'update_task', task_id: dynamicFirst.task_id, description: initialDescription + ' Confirm B shapes' }] })
   const revisedLayers = (await readTeam(stateRoot, 'dynamic-demo')).tasks[0]
-  check('structured plan edits preserve general constraints and rebuild execution text', revisedLayers.layers.general.requirements === initialLayers.general.requirements && revisedLayers.description.includes('Confirm B shapes'))
-  let flatEditRejected = false
-  try { await call('agent_teams_edit_plan', { operations: [{ action: 'update_task', task_id: dynamicFirst.task_id, description: 'flatten both layers' }] }) } catch { flatEditRejected = true }
-  check('layered plan edits reject flat description replacement', flatEditRejected)
+  check('structured plan edits replace the complete execution text', !revisedLayers.layers && revisedLayers.description.includes('Confirm B shapes'))
   const dynamicSecond = await call('agent_teams_create_task', {
     subject: 'implement result',
     assignee: 'implementer',
@@ -1532,7 +1529,7 @@ try {
   await call('agent_teams_delete', {})
 
   const batchPlan = { members: [{ name: 'worker' }, { name: 'verifier' }], tasks: [
-    { id: 'verify', subject: 'Validate output', assignee: 'verifier', dependencies: ['work'], layers: initialLayers },
+    { id: 'verify', subject: 'Validate output', assignee: 'verifier', dependencies: ['work'], description: initialDescription },
     { id: 'work', subject: 'Actual task', description: 'FULL_CONTRACT_BODY', assignee: 'worker' },
   ] }
   const beforeBadPlan = children.length
@@ -1542,7 +1539,7 @@ try {
   const batch = await call('agent_teams_create', { name: 'Batch Plan', description: 'One call builds roster and DAG', plan: batchPlan, approval: 'required' })
   const stagedBatch = await readTeam(stateRoot, 'batch-plan')
   check('one atomic call creates the full roster and resolves forward dependency references', batch.members.length === 2 && batch.tasks.length === 2 && stagedBatch.members.every(m => m.id === '') && stagedBatch.tasks[1].dependencies[0] === stagedBatch.tasks[0].id)
-  check('inline team plan preserves layers from the first creation', stagedBatch.tasks[1].layers.general.requirements === initialLayers.general.requirements && stagedBatch.tasks[1].description.includes(initialLayers.specific.requirements))
+  check('inline team plan uses one description from creation', !stagedBatch.tasks[1].layers && stagedBatch.tasks[1].description === initialDescription)
   const deliveryBeforeWork = await call('agent_teams_status', {})
   check('ordinary pending work cannot be reported deliverable', !deliveryBeforeWork.deliverable && !deliveryBeforeWork.delivery.ok)
   await call('agent_teams_approve', { confirmation: 'Run the accepted batch' })

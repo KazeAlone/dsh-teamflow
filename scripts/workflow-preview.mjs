@@ -177,7 +177,7 @@ createServer(async (req, res) => {
     if (body.action === 'open_discussion') {
       if (!process.env.TEAMFLOW_PREVIEW_DISCUSSION) throw new Error('此开发预览不包含 DSH 原生会话，请在真实宿主中使用此入口。');
       if(body.fresh) {transcripts.delete(key);discussion.proposal=undefined;}
-      if(key==='adapt')discussion.proposal=proposeWorkflow(team,'统一本次任务',team.tasks.map(t=>({action:'update_task',id:t.id,layers:{general:t.layers.general,specific:{requirements:'算子 B：'+t.subject,deliverables:'算子 B 的成果',acceptance:'通过本次验证'}},adaptationIssue:'',confirmConfiguration:true})));
+      if(key==='adapt')discussion.proposal=proposeWorkflow(team,'统一本次任务',team.tasks.map(t=>({action:'update_task',id:t.id,description:'算子 B：'+t.subject+'。交付算子 B 的成果，通过本次验证。',adaptationIssue:'',confirmConfiguration:true})));
       if(key==='template')discussion.templateDraft={base:workflowFingerprint(team),definition:{...sample,name:'可复用研发流程'}};
       discussion.native = { sessionId: `session-at-discussion-preview-${key}`, label: key };
     }

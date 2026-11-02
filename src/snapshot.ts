@@ -12,7 +12,6 @@ import type { Context } from '@deepseek-ai/cordis'
 import { readdir } from 'node:fs/promises'
 import { join } from 'node:path'
 import { memberActivity } from './members.ts'
-import { taskNeedsConfiguration } from './task-layers.ts'
 import { awaitsFirstStart } from './task-start-state.ts'
 import { canDeclareDelivery, describeQualityLoop, verdictAuditNotes } from './quality-gates.ts'
 import { auditTeamWorkspace } from './workspace-audit.ts'
@@ -87,7 +86,7 @@ export interface TeamActivitySnapshot {
   readonly captainSessionId: string
   readonly phase: 'staged' | 'running'
   readonly workflowEnabled?: boolean
-  readonly planReviewState?: 'generating' | 'awaiting_review' | 'awaiting_feedback'
+  readonly planReviewState?: 'awaiting_review' | 'awaiting_feedback'
   readonly halted?: boolean
   readonly members: readonly TeamActivityMember[]
   readonly tasks: readonly TeamActivityTask[]
@@ -212,7 +211,7 @@ export async function assembleTeamSnapshot(
     phase: state.phase ?? 'running',
     ...state.workflow === undefined ? {} : { workflowEnabled: true },
     ...state.phase === 'staged'
-      ? { planReviewState: state.planReviewState === 'awaiting_feedback' ? 'awaiting_feedback' as const : state.tasks.some(task => !task.checkpoint && taskNeedsConfiguration(task)) ? 'generating' as const : 'awaiting_review' as const }
+      ? { planReviewState: state.planReviewState ?? 'awaiting_review' as const }
       : {},
     ...state.halted === true ? { halted: true } : {},
     ...audit === undefined ? {} : {
@@ -225,7 +224,7 @@ export async function assembleTeamSnapshot(
       id: task.id,
       ...task.checkpoint === undefined ? {} : { checkpoint: task.checkpoint },
       ...task.workflowPaused ? { workflowPaused: true, workflowAwaitingStart: awaitsFirstStart(task) } : {},
-      ...!task.checkpoint && taskNeedsConfiguration(task) ? { workflowConfigPending: true } : {},
+      ...task.workflowConfigPending ? { workflowConfigPending: true } : {},
       ...task.workflowRerunRequired ? { workflowRerunRequired: true } : {},
       subject: task.subject,
       description: task.description ?? '',

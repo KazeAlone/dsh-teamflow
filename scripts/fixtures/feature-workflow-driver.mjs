@@ -74,38 +74,38 @@ export function apply(ctx) {
           handle.agent.followup(createUserMessage({content:[{type:'text',text:'请用 TeamFlow 为下面的目标创建团队和完整任务计划，等待我最终确认后再执行。\n'+readFileSync('README.md','utf8')}],source:{kind:'user'}}));
           await bounded(handle.agent.whenIdle());
           await post('state');
-          assert.equal(state.team?.phase,'staged');
+          assert.ok(state?.team, 'Model did not create a team; inspect model/tool events');
+          assert.equal(state.team.phase,'staged');
           assert.ok(state.team.tasks.length>=2);
-          assert.ok(state.team.tasks.every(t=>t.status==='pending'&&!t.workflowConfigPending&&t.layers?.general.requirements.trim()&&t.layers?.specific.requirements.trim()));
+          assert.ok(state.team.tasks.every(t=>t.status==='pending'&&!t.workflowConfigPending&&t.description?.trim()&&!t.layers));
           assert.ok(state.team.members.every(m=>!m.id));
           const calls=events.filter(e=>e.event==='tool-result');
-          assert.ok(calls.some(e=>e.name==='agent_teams_create'&&!e.isError&&e.arguments.plan?.tasks.every(t=>t.general&&!t.layers)),'Captain must use general-first create');
-          assert.ok(calls.some(e=>e.name==='agent_teams_edit_plan'&&!e.isError&&e.arguments.operations.every(op=>op.action==='update_task'&&op.specific&&!op.layers)),'Captain must specialize through edit_plan');
+          assert.ok(calls.some(e=>e.name==='agent_teams_create'&&!e.isError&&e.arguments.plan?.tasks.every(t=>t.description?.trim()&&!t.layers&&!t.general)),'Captain must create complete descriptions');
           record({event:'planning-only-passed'});
           writeFileSync(join(report,'result.json'),JSON.stringify({passed:true,stage,requests,captainPlanning,team:state.team},null,2));
           ctx.get('appExit')(0);return;
         }
         if(!resume){
         stage = 'apply-template';
-        if(fromScratch)await post('create',{name:'端口输入校验',description:readFileSync('README.md','utf8')+'\nCreate a five-node workflow: requirements, scope-review (human), implementation, verification, acceptance (human), in that dependency order. Use suitable members for analysis, implementation and independent verification. Generate the reusable general contracts first, then the complete instance contracts. Do not execute.'});
+        if(fromScratch)await post('create',{name:'端口输入校验',description:readFileSync('README.md','utf8')+'\nCreate a five-node workflow: requirements, scope-review (human), implementation, verification, acceptance (human), in that dependency order. Use suitable members for analysis, implementation and independent verification. Generate one complete description per task; reusable requirements are extracted only when saving a template. Do not execute.'});
         else await post('template_apply', { templateId: 'builtin-feature', version: parallel ? 2 : 1, name: parallel ? '并行端口输入校验' : '端口输入校验', description: readFileSync('README.md', 'utf8') });
         teamId = state.team.id;
-        const topology = state.team.tasks.map(t => ({ id: t.id, dependencies: t.dependencies, general: t.layers.general }));
+        const topology = state.team.tasks.map(t => ({ id: t.id, dependencies: t.dependencies, assignee:t.assignee }));
         await post('start', {}, 409);
         const planningKey=fromScratch?'graph':'adapt';
         await discussion(planningKey);
         const proposal = state.team.workflow.discussions['discussion:'+planningKey].proposal;
         assert.equal(proposal?.status, 'pending', 'Adaptation must produce a pending proposal');
-        assert.ok(state.team.tasks.every(t => !t.layers.specific.requirements), 'Generation must not overwrite without confirmation');
+        assert.ok(state.team.tasks.every(t => !t.description), 'Generation must not overwrite without confirmation');
         await post('apply', { discussion: planningKey, proposalId: proposal.id });
-        if(!fromScratch)assert.deepEqual(state.team.tasks.map(t => ({ id: t.id, dependencies: t.dependencies, general: t.layers.general })), topology);
+        if(!fromScratch)assert.deepEqual(state.team.tasks.map(t => ({ id: t.id, dependencies: t.dependencies, assignee:t.assignee })), topology);
         else assert.equal(state.team.tasks.length,5);
         assert.ok(state.team.tasks.every(t => !t.workflowConfigPending));
         assert.ok(state.team.members.every(m => !m.id));
         writeFileSync(join(report, 'adapted.json'), JSON.stringify(state, null, 2));
         if(planningOnly){
           assert.equal(state.team.phase,'staged');assert.ok(state.team.tasks.every(t=>t.status==='pending'));
-          assert.ok(state.team.tasks.every(t=>t.layers.general.requirements.trim()&&t.layers.specific.requirements.trim()));
+          assert.ok(state.team.tasks.every(t=>t.description?.trim()&&!t.layers));
           record({event:'planning-only-passed'});
           writeFileSync(join(report,'result.json'),JSON.stringify({passed:true,stage:'planning-only',requests,fromScratch,team:state.team},null,2));
           ctx.get('appExit')(0);return;

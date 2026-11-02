@@ -1148,7 +1148,7 @@ test('parallel feature template dispatches independent branches and waits at joi
     const root=mkdtempSync(join(tmpdir(),'feature-parallel-'));t.after(()=>rmSync(root,{recursive:true,force:true}))
     const source=instantiateTemplate(getBuiltinTemplate('builtin-feature'),'demo','captain-id','Port validation','Implement validatePort')
     source.phase='running'
-    for(const task of source.tasks){task.workflowPaused=false;task.workflowConfigPending=false;task.specificContractVersion=1;task.specificSourceGoal=source.description;task.layers.specific={requirements:'Validate integer ports 1 through 65535',deliverables:'Implementation and evidence',acceptance:'Boundary checks pass'};if(completed.includes(task.id)){task.status='completed';if(task.checkpoint)task.checkpoint.decision='approve'}}
+    for(const task of source.tasks){task.workflowPaused=false;task.workflowConfigPending=false;task.description='Implement port validation and deliver evidence';if(completed.includes(task.id)){task.status='completed';if(task.checkpoint)task.checkpoint.decision='approve'}}
     await createTeamDir(join(root,'.agent-teams'),source)
     const captain={id:'captain-id',status:'idle',session:{header:{cwd:root},ownEvents:()=>[]}}
     const dispatched=[]

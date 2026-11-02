@@ -9,7 +9,6 @@
  * @module dsh-agent-teams/profiles
  */
 
-import { parseLayers, type TaskLayers } from './task-layers.ts'
 import { CAPTAIN_KEY, sanitizeKey } from './state.ts'
 
 /** Hard cap on named profiles so the usage prompt cannot grow without bound. */
@@ -23,7 +22,7 @@ const PROFILE_KEYS = ['description', 'protocol', 'executionPrompt', 'fallback', 
 const REVIEW_POLICY_KEYS = ['requirementsMinRounds', 'requirementsMaxRounds', 'codeMaxRounds', 'maxRepairAttempts', 'requiredReviewers'] as const
 const MEMBER_KEYS = ['name', 'summary', 'role', 'provider', 'model', 'reasoning_effort', 'executionPrompt', 'fallback', 'tool_policy'] as const
 const FALLBACK_KEYS = ['provider', 'model'] as const
-const TASK_KEYS = ['id', 'subject', 'description', 'layers', 'assignee', 'dependencies'] as const
+const TASK_KEYS = ['id', 'subject', 'description', 'assignee', 'dependencies'] as const
 
 /** One member row in a named team-profile template (unresolved). */
 export interface TeamModelFallbackConfig {
@@ -52,7 +51,6 @@ export interface TeamProfileTaskConfig {
   id: string
   subject: string
   description?: string
-  layers?: TaskLayers
   assignee?: string
   dependencies?: string[]
 }
@@ -92,7 +90,6 @@ export interface NormalizedProfileTask {
   id: string
   subject: string
   description?: string
-  layers?: TaskLayers
   assignee?: string
   dependencies: string[]
   sourceIndex: number
@@ -509,7 +506,6 @@ function normalizeTask(
     `profile task "${id}" is missing a subject`,
   )
   const description = optionalNonEmptyString(raw['description'], `${path}.description`)
-  const layers = raw['layers'] === undefined ? undefined : parseLayers(raw['layers'])
   const dependencies = normalizeDependencies(raw['dependencies'], `${path}.dependencies`, id)
   const assignee = resolveTaskAssignee(
     raw['assignee'],
@@ -525,7 +521,6 @@ function normalizeTask(
     description,
     assignee,
     dependencies,
-    layers,
     sourceIndex,
   })
 }

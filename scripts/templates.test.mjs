@@ -8,12 +8,10 @@ import { Readable } from 'node:stream'
 import { parseTemplate, templateSeed, extractedTemplate, instantiateTemplate, templateTopology, validateAdaptation } from '../lib/templates.js'
 import { listTemplates, getTemplate, saveTemplate, deleteTemplate } from '../lib/template-store.js'
 import { builtinTemplates, getBuiltinTemplate } from '../lib/builtin-templates.js'
-import { taskSplitBlock, validateTaskSplit } from '../lib/task-split.js'
 import { resolveTeamProfile } from '../lib/profiles.js'
-import { taskText, emptyBrief, taskNeedsConfiguration, requireGeneratedTaskLayers, parseLayers } from '../lib/task-layers.js'
+import { taskText, taskNeedsConfiguration } from '../lib/task-description.js'
 import { applyWorkflowOperations, workflowFingerprint, checkpointReady, parseWorkflowOperations } from '../lib/workflow.js'
 import { isTeamTask, createTeamDir, readTeam, writeTeam } from '../lib/state.js'
-import { createGeneralDraft } from '../lib/workflow-planning.js'
 import { installWorkflowWorkbench } from '../lib/workflow-runtime.js'
 import { isWorkflowState } from '../lib/workflow-validation.js'
 import { memberPersona } from '../lib/members.js'
@@ -25,21 +23,7 @@ const general={requirements:'按已确认规格实现目标算子',deliverables:
 const definition=()=>({name:'算子流程',description:'适合算子开发',tags:['开发'],inputs:'参考实现与精度目标',members:[{name:'worker',summary:'实现',role:'开发',executionPrompt:'遵循项目约定'}],tasks:[{id:'t1',subject:'实现',assignee:'worker',dependencies:[],checkpoint:false,general:{...general}},{id:'gate',subject:'人工验收',assignee:'',dependencies:['t1'],checkpoint:true,general:{...general,requirements:'检查提交证据'}}],positions:{'task:t1':{x:20,y:20}}})
 const template=()=>({...definition(),id:'11111111-1111-4111-8111-111111111111',version:1,createdAt:1,updatedAt:1})
 const team=()=>instantiateTemplate(template(),'new-team','captain','算子 B','实现算子 B')
-const adaptation=t=>t.tasks.map(task=>({action:'update_task',id:task.id,layers:{general:task.layers.general,specific:{requirements:`本次处理算子 B：${task.subject}`,deliverables:'B 的交付物',acceptance:'B 的验收要求'}},adaptationIssue:'',confirmConfiguration:true}))
-
-test('layer diagnostics identify the failing path and type without guessing task content', () => {
-  for (const [value, type] of [[null, 'null'], [[], 'array'], ['', 'string'], ['{}', 'string'], [false, 'boolean']]) {
-    assert.throws(() => parseLayers(value), error => error.message.includes(`layers must be an object (received ${type})`))
-  }
-  const layers = { general: { ...general }, specific: { ...general } }
-  assert.throws(() => parseLayers({ specific: general }), /layers.general must be an object/)
-  assert.throws(() => parseLayers({ ...layers, specific: { ...general, acceptance: undefined } }), /layers.specific.acceptance must be a string \(received undefined\)/)
-  assert.throws(() => parseLayers({ ...layers, specific: { ...general, deliverables: ['result.txt'] } }), /layers.specific.deliverables must be a string \(received array\)/)
-  assert.throws(() => parseLayers({ ...layers, specific: { ...general, requirements: 'x'.repeat(16001) } }), /layers.specific.requirements.*16000/)
-  assert.throws(() => parseWorkflowOperations([{ action: 'update_member', name: 'worker', summary: 'unchanged' }, { action: 'update_task', id: 't1', layers: { ...layers, specific: [] } }]), /operations\[1\].layers.specific must be an object/)
-  assert.equal(parseLayers({ ...layers, specific: { ...general, deliverables: '  a\nb  ' } }).specific.deliverables, 'a\nb')
-  assert.deepEqual(layers, { general, specific: general }, 'parsing cannot change the caller input')
-})
+const adaptation=t=>t.tasks.map(task=>({action:'update_task',id:task.id,description:`本次处理算子 B：${task.subject}。交付 B 的实现，验收 B 的正确性。`,adaptationIssue:'',confirmConfiguration:true}))
 
 test('export and instantiation keep structure but never reuse execution/session/route data',()=>{
   const source=team();Object.assign(source.tasks[0],{output:'A secret result',attempt:5,status:'completed',attemptId:'old',changedPaths:['A.cpp']});Object.assign(source.members[0],{id:'old-session',provider:'old-provider',specificPrompt:'A ONLY'});source.workflow.discussions={};
@@ -48,8 +32,8 @@ test('export and instantiation keep structure but never reuse execution/session/
   assert.equal(templateTopology(saved),templateTopology(definition()))
   assert.ok(!JSON.stringify(saved).includes('A secret'));assert.ok(!JSON.stringify(saved).includes('old-session'));assert.ok(!JSON.stringify(saved).includes('old-provider'));assert.ok(!JSON.stringify(saved).includes('A ONLY'))
   assert.equal(fresh.tasks[0].output,undefined);assert.equal(fresh.tasks[0].attempt,0);assert.equal(fresh.members[0].id,'');assert.equal(fresh.phase,'staged');assert.equal(fresh.tasks[1].checkpoint.decision,undefined)
-  assert.ok(fresh.tasks.every(t=>t.workflowConfigPending));assert.equal(fresh.tasks[0].layers.specific.requirements,'');assert.ok(isWorkflowState(fresh.workflow));assert.ok(fresh.tasks.every(isTeamTask))
-  fresh.tasks[0].layers.general.requirements='changed';assert.equal(saved.tasks[0].general.requirements,general.requirements)
+  assert.ok(fresh.tasks.every(t=>t.workflowConfigPending));assert.equal(fresh.tasks[0].description,'');assert.ok(isWorkflowState(fresh.workflow));assert.ok(fresh.tasks.every(isTeamTask))
+  fresh.workflow.templateDefinition.tasks[0].general.requirements='changed';assert.equal(template().tasks[0].general.requirements,general.requirements);assert.equal(saved.tasks[0].general.requirements,'')
 })
 test('template parser rejects cycles, missing references, unsafe ids, invalid layers and strips runtime fields',()=>{
   for(const change of [d=>d.tasks[0].dependencies=['gate'],d=>d.tasks[0].assignee='missing',d=>d.tasks[1].dependencies=['missing'],d=>d.tasks[0].id='../escape',d=>d.tasks[0].general.requirements=7,d=>d.tasks[1].assignee='worker',d=>d.tasks[0].id='t999999999999999999999']){const d=definition();change(d);assert.throws(()=>parseTemplate(d))}
@@ -62,31 +46,10 @@ test('unified adaptation preserves all nodes, members and generic requirements',
   assert.throws(()=>validateAdaptation(current,ops.slice(1)),/所有节点/)
   assert.throws(()=>validateAdaptation(current,[...ops,{action:'add_task',subject:'extra',dependencies:[]}]),/增删/)
   assert.throws(()=>validateAdaptation(current,[{...ops[0],assignee:'captain'},ops[1]]),/负责人/)
-  const changed=structuredClone(ops);changed[0].layers.general.requirements='skip tests';assert.throws(()=>validateAdaptation(current,changed),/通用/)
+  const changed=structuredClone(ops);changed[0].general='skip tests';assert.throws(()=>validateAdaptation(current,changed),/描述/)
   const ready=applyWorkflowOperations(current,ops);assert.ok(ready.tasks.every(t=>!taskNeedsConfiguration(t)))
-  const cleared=structuredClone(ready.tasks[0].layers);cleared.specific.requirements='';const incomplete=applyWorkflowOperations(ready,[{action:'update_task',id:'t1',layers:cleared}]);assert.equal(incomplete.tasks[0].workflowConfigPending,true);
+  const incomplete=applyWorkflowOperations(ready,[{action:'update_task',id:'t1',description:''}]);assert.equal(incomplete.tasks[0].workflowConfigPending,true)
   assert.ok(!taskText(ready.tasks[0]).includes('通用任务'));assert.match(taskText(ready.tasks[0]),/算子 B/)
-})
-test('non-applicable nodes stay blocked; explicit resolution and changed generic layer require confirmation',()=>{
-  let current=team(),ops=adaptation(current);ops[0].adaptationIssue='当前项目没有 GPU';ops[0].confirmConfiguration=false
-  current=applyWorkflowOperations(current,ops);assert.ok(taskNeedsConfiguration(current.tasks[0]))
-  assert.throws(()=>applyWorkflowOperations(current,[{action:'update_task',id:'t1',confirmConfiguration:true}]),/先处理/)
-  current=applyWorkflowOperations(current,[{action:'update_task',id:'t1',adaptationIssue:'',confirmConfiguration:true}]);assert.ok(!taskNeedsConfiguration(current.tasks[0]))
-  const layers=structuredClone(current.tasks[0].layers);layers.general.acceptance='增加独立审查'
-  current=applyWorkflowOperations(current,[{action:'update_task',id:'t1',layers}]);assert.ok(current.tasks[0].workflowConfigPending)
-  assert.match(current.tasks[0].layers.specific.requirements,/算子 B/)
-  current=applyWorkflowOperations(current,[{action:'update_task',id:'t1',confirmConfiguration:true}]);assert.ok(!taskNeedsConfiguration(current.tasks[0]))
-  current.phase='running';current.tasks[0].status='completed';current.tasks[1].adaptationIssue='缺少证据';assert.equal(checkpointReady(current,current.tasks[1]),false)
-})
-test('layered drafts, human proposal edits and member prompts preserve both layers',()=>{
-  const current=team(),ops=adaptation(current),target={type:'task',id:'t1'}
-  let fields=reviewFields(current,ops[0]).fields;assert.ok(fields.some(f=>f.label==='本次验收要求'))
-  ops[0]=setReviewField(ops[0],fields.find(f=>f.key==='layers.specific.acceptance'),'用户要求验证误差')
-  const selected=reviewedOperations(current,ops,[true,true]);assert.equal(selected.length,2);assert.equal(selected[0].confirmConfiguration,true)
-  const updated=applyWorkflowOperations(current,selected),draft=initialEditorDraft(updated,target);assert.match(draft.values.description,/算子 B/);assert.ok(!draft.values.description.includes('通用任务：'))
-  draft.values.specificDeliverables='新交付';const op=propertyOperation(updated,target,draft);assert.equal(op.layers.general.requirements,general.requirements);assert.equal(op.layers.specific.deliverables,'新交付')
-  const m={...updated.members[0],specificPrompt:'关注 B 的低精度'};const prompt=memberPersona(updated,m,'.agent-teams');assert.match(prompt,/遵循项目约定/);assert.match(prompt,/关注 B 的低精度/)
-  assert.ok(!isTeamTask({...updated.tasks[0],layers:{general:{},specific:{}}}))
 })
 test('personal library is durable, versioned, concurrent-safe and deletion does not mutate instances',async(t)=>{
   const root=await mkdtemp(join(tmpdir(),'teamflow-library-'));t.after(()=>rm(root,{recursive:true,force:true}))
@@ -113,79 +76,9 @@ test('authenticated workflow handler applies templates once and leaves the sourc
   assert.equal((await call('template_apply',{templateId:template.id,version:1,name:'duplicate',description:'B'})).status,409)
   assert.equal(await readFile(join(state,'source','team.json'),'utf8'),before);assert.ok(await readTeam(state,result.team.id))
   const renamed=structuredClone(result.team);renamed.description='new target';assert.notEqual(workflowFingerprint(renamed),result.base)
-  const staged=await readTeam(state,result.team.id)
-  const draft=createGeneralDraft(staged,'Extra step',[],[{id:'extra',subject:'Extra task',dependencies:[],...general}],8)
-  staged.workflow.discussions['discussion:graph']={key:'graph',messages:[],calls:[],generalDraft:draft}
-  await writeTeam(state,staged)
-  assert.equal((await call('dismiss',{teamId:staged.id,discussion:'graph',generalDraftId:'stale'})).status,409)
-  assert.equal((await readTeam(state,staged.id)).workflow.discussions['discussion:graph'].generalDraft.id,draft.id)
-  staged.workflow.discussions['discussion:graph'].proposal={...draft,status:'pending',createdAt:Date.now()}
-  await writeTeam(state,staged)
-  assert.equal((await call('dismiss',{teamId:staged.id,discussion:'graph',generalDraftId:draft.id})).status,409,'A late draft discard cannot dismiss a completed proposal')
-  delete staged.workflow.discussions['discussion:graph'].proposal;await writeTeam(state,staged)
-  assert.equal((await call('dismiss',{teamId:staged.id,discussion:'graph',generalDraftId:draft.id})).status,200)
-  const discarded=await readTeam(state,staged.id)
-  assert.equal(discarded.workflow.discussions['discussion:graph'].generalDraft,undefined)
-  assert.deepEqual(discarded.tasks,staged.tasks)
+
 })
 
-
-test('first model-authored nodes require both layers while legacy operations remain compatible',()=>{
-  const op={action:'add_task',subject:'Implement',dependencies:[]}
-  assert.throws(()=>requireGeneratedTaskLayers([op]),/layers/)
-  assert.throws(()=>requireGeneratedTaskLayers([{...op,layers:{general:emptyBrief(),specific:general}}]),/layers/)
-  const layers={general,specific:{requirements:'Implement B',deliverables:'B.cpp',acceptance:'B tests'}}
-  assert.doesNotThrow(()=>requireGeneratedTaskLayers([{...op,layers}]))
-  assert.doesNotThrow(()=>requireGeneratedTaskLayers([{action:'update_task',id:'t1',description:'legacy'}]))
-  const fields=reviewFields(team(),{...op,layers,description:taskText({layers})}).fields
-  assert.ok(!fields.some(f=>f.key==='description'))
-  assert.equal(fields.filter(f=>f.key.startsWith('layers.')).length,6)
-})
-
-test('inline plans normalize layered contracts and keep old profiles readable',()=>{
-  const layers={general,specific:{requirements:'Implement B',deliverables:'B.cpp',acceptance:'B tests'}}
-  const profile=resolveTeamProfile({demo:{members:[{name:'worker'}],tasks:[{id:'build',subject:'Build',assignee:'worker',layers}]}},'demo',8)
-  assert.deepEqual(profile.tasks[0].layers,layers)
-})
-
-test('one-click split permits only replacing the same editable task layers',()=>{
- const source=team().tasks[0];source.description='Implement B';delete source.layers
- assert.equal(taskSplitBlock(source),undefined)
- for(const status of ['completed','in_progress','claimed'])assert.ok(taskSplitBlock({...source,status}))
- assert.ok(taskSplitBlock({...source,description:''}))
- const op={action:'update_task',id:source.id,layers:{general,specific:{requirements:'B',deliverables:'B.cpp',acceptance:'B tests'}}}
- assert.doesNotThrow(()=>validateTaskSplit(source.id,[op]))
- for(const ops of [[{...op,id:'different'}],[{...op,action:'add_task'}],[{...op,subject:'rename'}],[{...op,confirmConfiguration:true}],[op,op]])assert.throws(()=>validateTaskSplit(source.id,ops),/只能/)
- assert.throws(()=>validateTaskSplit(source.id,[{...op,layers:{general:emptyBrief(),specific:general}}]),/同时填写/)
-})
-
-test('execution renders only the standalone specific layer and legacy layers require confirmation',()=>{
- const legacy={layers:{general:{requirements:'GENERAL_ONLY_SENTINEL',deliverables:'Reusable outputs',acceptance:'Reusable gate'},specific:{requirements:'Implement B using confirmed spec',deliverables:'B.cpp and tests',acceptance:'Independent B checks'}},description:'stale combined description'}
- assert.ok(taskNeedsConfiguration(legacy))
- const task={...legacy,specificContractVersion:1}
- assert.equal(taskNeedsConfiguration(task),false)
- assert.equal(taskText(task),'Implement B using confirmed spec\n\n交付物：\nB.cpp and tests\n\n验收要求：\nIndependent B checks')
- assert.ok(!taskText(task).includes('GENERAL_ONLY_SENTINEL'))
- assert.equal(taskText({description:'Legacy single task'}),'Legacy single task')
- const portable=templateSeed({...team(),tasks:[{...team().tasks[0],...task}]})
- assert.equal(portable.tasks[0].general.requirements,'GENERAL_ONLY_SENTINEL')
- assert.ok(!JSON.stringify(portable).includes('B.cpp'))
-})
-
-test('saved old contracts and changed team goals require explicit review before execution',async t=>{
- const root=await mkdtemp(join(tmpdir(),'specific-migration-'));t.after(()=>rm(root,{recursive:true,force:true}))
- let current=applyWorkflowOperations(team(),adaptation(team()))
- await createTeamDir(root,current)
- assert.ok(!(await readTeam(root,current.id)).tasks[0].workflowConfigPending)
- current.description='A different target'
- await writeFile(join(root,current.id,'team.json'),JSON.stringify(current))
- let loaded=await readTeam(root,current.id);assert.ok(loaded.tasks.every(task=>task.workflowConfigPending))
- loaded=applyWorkflowOperations(loaded,loaded.tasks.map(task=>({action:'update_task',id:task.id,confirmConfiguration:true})))
- assert.ok(loaded.tasks.every(task=>task.specificSourceGoal==='A different target' && !taskNeedsConfiguration(task)))
- delete loaded.tasks[0].specificContractVersion
- await writeFile(join(root,current.id,'team.json'),JSON.stringify(loaded))
- assert.ok((await readTeam(root,current.id)).tasks[0].workflowConfigPending)
-})
 
 test('built-in starter workflows are complete, immutable and copy into personal templates',async t=>{
  const root=await mkdtemp(join(tmpdir(),'builtin-copy-'));t.after(()=>rm(root,{recursive:true,force:true}))
@@ -196,7 +89,7 @@ test('built-in starter workflows are complete, immutable and copy into personal 
   assert.equal(item.tasks.filter(task=>task.checkpoint).length,2)
   const instance=instantiateTemplate(item,'instance','captain','New goal','User task')
   assert.deepEqual(instance.tasks.map(task=>task.id),item.tasks.map(task=>task.id))
-  assert.ok(instance.tasks.every(task=>task.workflowConfigPending && task.layers.specific.requirements===''))
+  assert.ok(instance.tasks.every(task=>task.workflowConfigPending && task.description==='' && !task.layers))
   validateAdaptation(instance,adaptation(instance))
   const copy=await saveTemplate(root,item);assert.notEqual(copy.id,item.id)
   await assert.rejects(()=>saveTemplate(root,item,{id:item.id,version:1}),/只读/)

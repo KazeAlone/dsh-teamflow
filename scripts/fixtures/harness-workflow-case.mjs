@@ -141,34 +141,11 @@ export async function exerciseWorkflow({ baseUrl, cookie, captain, readTeam, rec
   assert.equal(result.team.members.length, 0, 'Automatic planning remains a proposal until confirmed');
   result = await post('apply', { proposalId: result.team.workflow.discussions['discussion:graph'].proposal.id });
   assert.equal(result.team.members.length, 1); assert.equal(result.team.tasks.length, 1); assert.equal(result.team.phase, 'staged');
-  assert.ok(result.team.tasks[0].layers.general.requirements, 'First planning fills the reusable layer');
-  assert.equal(result.team.tasks[0].layers.specific.requirements, 'Implement operator A');
+  assert.equal(result.team.tasks[0].layers,undefined, 'Ordinary tasks do not generate reusable layers');
+  assert.match(result.team.tasks[0].description, /Implement operator A/);
   const nativeId = result.team.workflow.discussions['discussion:graph'].native.sessionId;
   writeFileSync('workflow-resume.json', JSON.stringify({ teamId: activeTeam, captainId: activeSession, nativeId }));
   await ctx.sessions.flush(automatic.agent.session);
-  // One-click conversion preserves node identity and never applies before approval.
-  result = await post('edit', {base:result.base,title:'Legacy task',operations:[{action:'add_task',id:'legacy',subject:'Legacy operator C',description:'Implement operator C in C.cpp, include tests, error below 0.001',assignee:'worker',dependencies:[]}]});
-  const legacy = result.team.tasks.at(-1), splitKey = 'task:' + legacy.id;
-  const splitOpened = await post('split_task', {discussion:splitKey});
-  const splitDeadline = Date.now() + 20000;
-  while (!events.some(e => e.event === 'workflow-native-finished' && e.sessionId === splitOpened.openedSessionId)) {
-    assert.ok(Date.now() < splitDeadline, 'Split discussion timeout'); await new Promise(resolve=>setTimeout(resolve,30));
-  }
-  await ctx.agents.get(splitOpened.openedSessionId).whenIdle();
-  result = await post('state');
-  assert.deepEqual(result.team.tasks.find(t=>t.id===legacy.id),legacy,'Split generation does not mutate source');
-  const splitProposal = result.team.workflow.discussions['discussion:'+splitKey].proposal;
-  await post('apply',{discussion:splitKey,proposalId:splitProposal.id,operations:[{...splitProposal.operations[0],subject:'Unexpected rename'}]},409);
-  result = await post('apply',{discussion:splitKey,proposalId:splitProposal.id});
-  const converted = result.team.tasks.find(t=>t.id===legacy.id);
-  assert.equal(result.team.tasks.length,2);assert.equal(converted.subject,legacy.subject);assert.equal(converted.status,legacy.status);assert.equal(converted.attempt,legacy.attempt);assert.deepEqual(converted.dependencies,legacy.dependencies);
-  assert.equal(converted.description.split('通用任务：').length-1,0);
-  assert.ok(converted.description.includes(converted.layers.specific.requirements));
-  assert.equal(converted.specificContractVersion,1);
-  assert.equal(converted.workflowConfigPending,legacy.workflowConfigPending,'Approval must not add a second save requirement');
-  record({event:'workflow-split-passed',snapshot:{layers:converted.layers,subject:converted.subject,status:converted.status,attempt:converted.attempt,taskCount:result.team.tasks.length}});
-  await post('apply',{discussion:splitKey,proposalId:splitProposal.id},409);
-  result=await post('edit',{base:result.base,title:'Remove test task',operations:[{action:'remove_task',id:legacy.id}]});
   // Template extraction and adaptation use the real isolated native sessions.
   const sourceBefore=JSON.stringify(result.team.tasks);
   result=await nativeDiscussion('template');
@@ -183,21 +160,21 @@ export async function exerciseWorkflow({ baseUrl, cookie, captain, readTeam, rec
   assert.ok(result.team.tasks.every(t=>t.workflowConfigPending));assert.ok(result.team.members.every(m=>!m.id));
   await post('start',{},409);
   result=await nativeDiscussion('adapt');
-  assert.ok(result.team.tasks.every(t=>t.layers.specific.requirements===''),'Generation stays a proposal');
+  assert.ok(result.team.tasks.every(t=>!t.description && !t.layers),'Generation stays a proposal');
   const adapted=result.team.workflow.discussions['discussion:adapt'].proposal;
   result=await post('apply',{discussion:'adapt',proposalId:adapted.id});
-  assert.ok(result.team.tasks.every(t=>!t.workflowConfigPending && t.layers.specific.requirements==='Implement operator B according to confirmed specifications'));
+  assert.ok(result.team.tasks.every(t=>!t.workflowConfigPending && t.description.includes('Implement operator B according to confirmed specifications') && !t.layers));
   assert.ok(result.team.members.every(m=>!m.id),'Applying a proposal must not execute staged tasks');
-  const generic=result.team.tasks[0].layers.general.requirements;
+  const generic=result.team.workflow.templateDefinition.tasks[0].general.requirements;
   const v2=await post('template_save',{definition:{...saved.template,name:'Updated template'},templateId:saved.template.id,version:1});
   assert.equal(v2.template.version,2);
-  result=await post('state');assert.equal(result.team.workflow.templateSource.version,1);assert.equal(result.team.tasks[0].layers.general.requirements,generic);
+  result=await post('state');assert.equal(result.team.workflow.templateSource.version,1);assert.equal(result.team.workflow.templateDefinition.tasks[0].general.requirements,generic);
   result=await post('start');
   const templateDeadline=Date.now()+20000;
   do{result=await post('state');if(result.team.tasks[0].status==='completed')break;await new Promise(r=>setTimeout(r,50))}while(Date.now()<templateDeadline);
   assert.equal(result.team.tasks[0].status,'completed');
   record({event:'workflow-template-passed',extraction:true,fixedGraph:true,unifiedAdaptation:true,independentVersion:true,execution:true,
-    snapshot:{task:result.team.tasks[0].layers,sourceVersion:result.team.workflow.templateSource.version,templateVersion:v2.template.version}});
+    snapshot:{task:{description:result.team.tasks[0].description},sourceVersion:result.team.workflow.templateSource.version,templateVersion:v2.template.version}});
   const catalog = (await post('template_list')).templates.filter(t=>t.id.startsWith('builtin-'));
   assert.equal(catalog.length,3);
   for(const item of catalog){
@@ -208,7 +185,7 @@ export async function exerciseWorkflow({ baseUrl, cookie, captain, readTeam, rec
     const copied=await post('template_save',{definition:item});assert.notEqual(copied.template.id,item.id);
     const installed=await post('template_apply',{templateId:item.id,version:item.version,name:item.name,description:'本次具体目标'});activeTeam=installed.team.id;assert.equal(installed.activity.teamId,activeTeam);assert.equal(installed.activity.phase,'staged');
     assert.equal(installed.team.tasks.length,item.tasks.length);
-    assert.ok(installed.team.tasks.every(t=>t.workflowConfigPending && !t.layers.specific.requirements));
+    assert.ok(installed.team.tasks.every(t=>t.workflowConfigPending && !t.description && !t.layers));
     await post('start',{},409);
   }
   record({event:'builtin-templates-passed',snapshot:catalog});
@@ -216,8 +193,8 @@ export async function exerciseWorkflow({ baseUrl, cookie, captain, readTeam, rec
   ctx.effect(()=>()=>englishOwner.dispose());await englishOwner.agent.whenIdle();activeSession=englishOwner.agent.id;activeTeam='';
   const english=await post('template_apply',{templateId:'builtin-feature',version:2,name:'English feature',description:'Keep my task 具体目标',language:'en'});
   assert.equal(english.team.description,'Keep my task 具体目标');
-  assert.ok(english.team.tasks.every(t=>!t.layers.specific.requirements && t.workflowConfigPending));
-  assert.ok(english.team.tasks.every(t=>!/[\p{Script=Han}]/u.test(JSON.stringify(t.layers.general))));
+  assert.ok(english.team.tasks.every(t=>!t.description && !t.layers && t.workflowConfigPending));
+  assert.ok(english.team.workflow.templateDefinition.tasks.every(t=>!/[\p{Script=Han}]/u.test(JSON.stringify(t.general))));
   assert.deepEqual(english.team.tasks.map(t=>t.dependencies),catalog.find(t=>t.id==='builtin-feature').tasks.map(t=>t.dependencies));
   record({event:'builtin-english-passed',tasks:english.team.tasks.length});
 

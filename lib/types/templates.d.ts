@@ -1,7 +1,7 @@
 /** Runtime-independent template format. Only explicitly portable fields are exported. */
 import type { TeamState } from './types.ts';
 import type { WorkflowOperation } from './workflow-types.ts';
-import { type TaskBrief } from './task-layers.ts';
+import { type TaskBrief } from './template-brief.ts';
 export interface TemplateMember {
     name: string;
     summary: string;
@@ -45,6 +45,6 @@ export declare function templateSeed(team: TeamState): TemplateDefinition;
 export declare function templateTopology(value: Pick<TemplateDefinition, 'members' | 'tasks'>): string;
 export declare function extractedTemplate(team: TeamState, value: unknown): TemplateDefinition;
 export declare function instantiateTemplate(template: TemplateVersion, id: string, captainSessionId: string, name: string, goal: string, now?: number): TeamState;
-/** The adaptation agent may fill the instance, never alter the saved graph or generic layer. */
+/** The adaptation agent may fill the instance, never alter the saved graph or template definition. */
 export declare function validateAdaptation(team: TeamState, operations: WorkflowOperation[]): void;
 export declare const isBuiltinTemplate: (id: string) => boolean;

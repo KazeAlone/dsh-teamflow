@@ -4,8 +4,7 @@ export type ProposalReviewDraft = {
     operations: WorkflowOperation[];
     included: boolean[];
 };
-export declare function ProposalReview({ team, proposal, base, busy, onApply, onDismiss, draft, onChange, fixedStructure, splitLayers }: {
-    splitLayers?: boolean;
+export declare function ProposalReview({ team, proposal, base, busy, onApply, onDismiss, draft, onChange, fixedStructure }: {
     fixedStructure?: boolean;
     team: TeamState;
     proposal: WorkflowProposal;

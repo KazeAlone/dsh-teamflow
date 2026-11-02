@@ -58,27 +58,17 @@ class WebApprovalAdapter extends LlmAdapter {
             if (!names.includes('agent_teams_create')) {
                 yield* call('agent_teams_create', { name: 'planning-completion', description: 'Validate ports 1–65535', approval: 'required', plan: {
                     members: [{ name: 'worker', role: 'WEB_APPROVAL_MEMBER' }],
-                    tasks: ['first', 'second'].map((id, index) => ({ id, subject: id, assignee: 'worker', dependencies: index ? ['first'] : [], general: { requirements: 'Validate against the specified range', deliverables: 'Implementation and tests', acceptance: 'Boundary cases pass' } })),
+                    tasks: ['first', 'second'].map((id, index) => ({ id, subject: id, assignee: 'worker', dependencies: index ? ['first'] : [], description: 'Accept integer ports 1–65535 only. Deliver validator and tests; 1 and 65535 pass, 0 and 65536 fail.' })),
                 } }); return;
             }
-            const reminders = options.messages.filter(message => message.role === 'user' && message.content?.some(block => block.type === 'text' && block.text.startsWith('AgentTeams creation is incomplete.')));
-            const edits = names.filter(name => name === 'agent_teams_edit_plan').length;
-            if (reminders.length > edits && edits < 2) {
-                const reminder = reminders.at(-1).content.find(block => block.type === 'text').text;
-                const context = JSON.parse(reminder.split('Stage 2 context (saved task data):\n')[1]);
-                assert.equal(context.goal, 'Validate ports 1–65535');
-                assert.equal(context.tasks.length, 2 - edits);
-                assert.equal(context.tasks[0].general.requirements, 'Validate against the specified range');
-                yield* call('agent_teams_edit_plan', { operations: [{ action: 'update_task', task_id: context.tasks[0].task_id, specific: { requirements: 'Accept integer ports 1–65535 only', deliverables: 'Port validator and tests', acceptance: '1 and 65535 pass; 0 and 65536 fail' } }] }); return;
-            }
-            // Deliberately stop after create AND after the first partial edit.
-            yield* textChunks(edits < 2 ? 'Plan created, please configure the remaining nodes.' : 'Complete plan is ready for approval.');
-            return;
+            assert.equal(names.filter(name=>name==='agent_teams_create').length,1);
+            assert.ok(!names.includes('agent_teams_edit_plan'));
+            yield* textChunks('Complete plan is ready for approval.'); return;
         }
         if (options.sessionId?.startsWith('session-at-discussion-')) {
             assert.ok(options.sessionId, 'Discussion must use a durable native session');
             const visible=(options.tools??[]).map(t=>t.name).sort();
-            assert.deepEqual(visible, userText.includes('提炼当前流程为可复用模板') ? ['agent_teams_template_propose','agent_teams_workflow_context'] : visible.includes('agent_teams_plan_general') ? ['agent_teams_plan_general','agent_teams_plan_specific','agent_teams_workflow_context','agent_teams_workflow_propose'] : visible.includes('agent_teams_plan_specific') ? ['agent_teams_plan_specific','agent_teams_workflow_context'] : ['agent_teams_workflow_context','agent_teams_workflow_propose']);
+            assert.deepEqual(visible, userText.includes('提炼当前流程为可复用模板') ? ['agent_teams_template_propose','agent_teams_workflow_context'] : ['agent_teams_workflow_context','agent_teams_workflow_propose']);
             const proposalTool = options.tools?.find(t => t.name === 'agent_teams_workflow_propose');
             if (proposalTool) assert.equal(proposalTool.parameters.properties.operations.type, 'array', 'Native proposals use structured operations, not nested JSON strings');
             const lastUser = options.messages.findLastIndex(m => m.role === 'user');
@@ -95,17 +85,11 @@ class WebApprovalAdapter extends LlmAdapter {
               definition.tasks.forEach(t => { t.general = { requirements: 'Implement according to confirmed specifications', deliverables: 'Implementation and evidence', acceptance: 'Independent correctness checks' }; });
               yield* call('agent_teams_template_propose', { base: context.base, definition: JSON.stringify(definition) }); return;
             }
-            const turnBlocks=turn.flatMap(m=>m.role==='tool'?[{type:'tool-result',content:m.content}]:m.content??[]);
-            const toolResults=turnBlocks.filter(b=>b.type==='tool-result').flatMap(b=>b.content??[]).filter(b=>b.type==='text').map(b=>{try{return JSON.parse(b.text)}catch{return {}}});
-            if(context.discussion==='graph' && context.team?.members.length===0 && !context.draftId && !turnCalls.some(c=>c.name==='agent_teams_plan_general')) {
-              yield* call('agent_teams_plan_general',{base:context.base,title:'原生讨论配置方案',members:[{name:'worker',summary:'讨论规划的执行成员',role:'WEB_APPROVAL_MEMBER'}],tasks:[{id:'t1',subject:'讨论规划任务',assignee:'worker',dependencies:[],requirements:'Implement the requested operator against its specification',deliverables:'Implementation and verification evidence',acceptance:'Pass independent correctness checks'}]});return;
-            }
-            const draft=toolResults.findLast(v=>v.draftId&&v.tasks);
-            if(draft && ['graph','adapt'].includes(context.discussion) && !turnCalls.some(c=>c.name==='agent_teams_plan_specific')) {
-              const adapting=context.discussion==='adapt';
-              yield* call('agent_teams_plan_specific',{draftId:draft.draftId,tasks:draft.tasks.map(t=>({id:t.id,requirements:adapting?'Implement operator B according to confirmed specifications':'Implement operator A',deliverables:adapting?'B implementation and verification evidence':'A implementation',acceptance:adapting?'Independent B correctness checks':'A correctness'}))});return;
-            }
-            const operations = userText.includes('请将当前任务已有描述整理为通用层和本次层') ? [{action:'update_task',id:context.discussion.slice(5),layers:{general:{requirements:'Implement against confirmed specifications',deliverables:'Implementation and tests',acceptance:'Pass correctness checks'},specific:{requirements:'Implement operator C in C.cpp against confirmed specifications',deliverables:'C.cpp and tests',acceptance:'Pass correctness checks with error below 0.001'}}}] : context.discussion === 'member:worker' ? [{ action: 'update_member', name: 'worker', summary: '负责实现与自测，交付验证证据' }] : [];
+            const operations = context.discussion==='graph' && context.team?.members.length===0 ? [
+                {action:'add_member',name:'worker',summary:'讨论规划的执行成员',role:'WEB_APPROVAL_MEMBER'},
+                {action:'add_task',id:'t1',subject:'讨论规划任务',assignee:'worker',dependencies:[],description:'Implement operator A; deliver A implementation and verify A correctness'}
+            ] : context.discussion==='adapt' ? context.tasks.map(task=>({action:'update_task',id:task.id,description:'Implement operator B according to confirmed specifications; deliver B implementation and verification evidence; Independent B correctness checks'}))
+              : context.discussion === 'member:worker' ? [{ action: 'update_member', name: 'worker', summary: '负责实现与自测，交付验证证据' }] : [];
             if (operations.length && !turnCalls.some(c => c.name === 'agent_teams_workflow_propose')) { yield* call('agent_teams_workflow_propose', { base: context.base, title: '原生讨论配置方案', operations }); return; }
             yield* textChunks('已整理方案与材料，请在编排画布中查看并确认。');
             record({ event: 'workflow-native-finished', sessionId: options.sessionId });
@@ -337,10 +321,10 @@ export function apply(ctx) {
         assert.equal(ready.planReviewState, 'awaiting_review');
         assert.ok(ready.members.every(member => member.id === ''));
         assert.equal(ready.tasks.length, 2);
-        assert.ok(ready.tasks.every(task => !task.workflowConfigPending && task.layers.specific.requirements.includes('1–65535')));
+        assert.ok(ready.tasks.every(task => !task.workflowConfigPending && !task.layers && task.description.includes('1–65535')));
         const runnable = await fetch(baseUrl + '/plugins/dsh-agent-teams/plan', { method: 'POST', headers: { 'content-type': 'application/json', origin: baseUrl, cookie }, body: JSON.stringify({ sessionId: planningHandle.agent.id, teamId: ready.id, action: 'approve' }), signal: AbortSignal.timeout(10000) });
         assert.equal(runnable.status, 200, await runnable.text());
-        record({ event: 'captain-planning-completion-passed', prematureStops: 2, configuredTasks: ready.tasks.length, approvalStatus: runnable.status });
+        record({ event: 'captain-single-description-passed', createCalls: 1, configuredTasks: ready.tasks.length, approvalStatus: runnable.status });
         process.stdout.write('WEB_APPROVAL_OK\n');
         ctx.get('appExit')(0);
     })().catch(error => {

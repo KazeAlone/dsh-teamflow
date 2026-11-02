@@ -25,6 +25,6 @@ export function workflowMessage(text: string, l: WorkflowText): string {
   }
   return text
 }
-export function briefDisplay(value: import('../task-layers.ts').TaskBrief, l: WorkflowText): string {
+export function briefDisplay(value: import('../template-brief.ts').TaskBrief, l: WorkflowText): string {
   return [value.requirements, value.deliverables && l('交付物：')+'\n'+value.deliverables, value.acceptance && l('验收要求：')+'\n'+value.acceptance].filter(Boolean).join('\n\n')
 }

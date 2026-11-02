@@ -161,12 +161,6 @@ export interface TaskEvidence {
 
 /** One task of a team's task list. */
 export interface TeamTask {
-  /** Generic method and the requirements of this particular run. */
-  layers?: import('./task-layers.ts').TaskLayers
-  /** Version 1 confirms the specific layer is a standalone execution contract. */
-  specificContractVersion?: 1
-  /** Team goal used when the specific contract was last generated or confirmed. */
-  specificSourceGoal?: string
   /** Non-applicability or missing input; explicit human resolution is required. */
   adaptationIssue?: string
   /** Explicit rerun context, kept separate from the durable task contract. */
@@ -409,13 +403,12 @@ export interface TeamState {
    */
   phase?: 'staged' | 'running'
   /**
-   * `generating` means instance contracts are incomplete.
    * Human-facing review sub-state while `phase` is `staged`. Missing staged
    * records are treated as `awaiting_review` for backward compatibility.
    * `awaiting_feedback` means the user returned to chat and the Captain must
    * ask what should change before editing this same draft.
    */
-  planReviewState?: 'generating' | 'awaiting_review' | 'awaiting_feedback'
+  planReviewState?: 'awaiting_review' | 'awaiting_feedback'
   /** Timestamp written only after a staged plan is explicitly approved. */
   approvedAt?: number
   /**

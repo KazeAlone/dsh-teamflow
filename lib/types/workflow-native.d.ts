@@ -44,6 +44,5 @@ export declare function installWorkflowConversations(ctx: Context, config: Tools
     open(captain: Agent, team: TeamState, key: string, root: string, options?: {
         fresh?: boolean;
         message?: string;
-        splitLayers?: boolean;
     }): Promise<string>;
 };

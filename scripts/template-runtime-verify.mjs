@@ -32,7 +32,6 @@ const result={host:host.version,plugin:JSON.parse(readFileSync(join(plugin,'pack
 writeFileSync(join(report,'result.json'),JSON.stringify(result,null,2)+'\n')
 console.log(JSON.stringify(result,null,2))
 assert.deepEqual(template?.snapshot,JSON.parse(readFileSync(new URL('./fixtures/snapshots/teamflow-template.json',import.meta.url),'utf8')),'Packaged template composition snapshot changed')
-assert.deepEqual(trace.find(row=>row.event==='workflow-split-passed')?.snapshot,JSON.parse(readFileSync(new URL('./fixtures/snapshots/teamflow-split.json',import.meta.url),'utf8')),'One-click split snapshot changed')
 assert.ok(trace.some(row=>row.event==='specific-contract-execution' && row.specificOnly), 'Real executor must receive the complete specific contract')
 assert.deepEqual(trace.find(row=>row.event==='builtin-templates-passed')?.snapshot,JSON.parse(readFileSync(new URL('./fixtures/snapshots/builtin-templates.json',import.meta.url),'utf8')),'Built-in template catalog changed')
 if(!template||runs.some(run=>!run.passed))process.exitCode=1
@@ -42,4 +41,4 @@ assert.deepEqual(trace.find(row=>row.event==='workflow-native-request')?.tools.f
 assert.ok(trace.some(row=>row.event==='builtin-english-passed' && row.tasks===9), 'English built-in template must apply through the packaged HTTP route');
 
 assert.ok(trace.some(row=>row.event==='rerun-path-passed' && row.humanGatePreserved && row.automaticContinuation), 'Packaged rerun path must continue after human approval');
-assert.ok(trace.some(row=>row.event==='captain-planning-completion-passed' && row.prematureStops===2 && row.configuredTasks===2 && row.approvalStatus===200), 'One user request must complete captain planning despite premature stops and partial edits');
+assert.ok(trace.some(row=>row.event==='captain-single-description-passed' && row.createCalls===1 && row.configuredTasks===2 && row.approvalStatus===200), 'One create call must produce runnable descriptions without specialization calls');

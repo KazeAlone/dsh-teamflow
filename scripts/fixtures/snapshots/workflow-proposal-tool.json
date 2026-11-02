@@ -71,61 +71,6 @@
             "assignee": {
               "type": "string"
             },
-            "layers": {
-              "type": "object",
-              "description": "Pass a JSON object directly, never a JSON-encoded string, array, null or empty string. general and specific are objects; their requirements, deliverables and acceptance fields are strings. Generate both layers when creating tasks: general is the reusable method and quality constraints; specific is the COMPLETE standalone execution contract, concretizing every general method, deliverable and acceptance constraint for the current goal, paths and parameters. Executors see only specific, never general; do not refer back to general. Do not duplicate layers in description. Omit layers entirely when making an unrelated edit.",
-              "additionalProperties": false,
-              "properties": {
-                "general": {
-                  "type": "object",
-                  "additionalProperties": false,
-                  "properties": {
-                    "requirements": {
-                      "type": "string"
-                    },
-                    "deliverables": {
-                      "type": "string",
-                      "description": "Plain text, not an array. Separate multiple deliverables with newlines."
-                    },
-                    "acceptance": {
-                      "type": "string",
-                      "description": "Plain text, not an array. Separate multiple acceptance criteria with newlines."
-                    }
-                  },
-                  "required": [
-                    "requirements",
-                    "deliverables",
-                    "acceptance"
-                  ]
-                },
-                "specific": {
-                  "type": "object",
-                  "additionalProperties": false,
-                  "properties": {
-                    "requirements": {
-                      "type": "string"
-                    },
-                    "deliverables": {
-                      "type": "string",
-                      "description": "Plain text, not an array. Separate multiple deliverables with newlines."
-                    },
-                    "acceptance": {
-                      "type": "string",
-                      "description": "Plain text, not an array. Separate multiple acceptance criteria with newlines."
-                    }
-                  },
-                  "required": [
-                    "requirements",
-                    "deliverables",
-                    "acceptance"
-                  ]
-                }
-              },
-              "required": [
-                "general",
-                "specific"
-              ]
-            },
             "adaptationIssue": {
               "type": "string"
             },

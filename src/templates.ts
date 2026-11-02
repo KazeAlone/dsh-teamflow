@@ -1,7 +1,7 @@
 /** Runtime-independent template format. Only explicitly portable fields are exported. */
 import type { TeamState } from './types.ts'
 import type { WorkflowOperation } from './workflow-types.ts'
-import { emptyBrief, parseBrief, type TaskBrief } from './task-layers.ts'
+import { emptyBrief, parseBrief, type TaskBrief } from './template-brief.ts'
 
 export interface TemplateMember { name: string; summary: string; role: string; executionPrompt: string }
 export interface TemplateTask { id: string; subject: string; assignee: string; dependencies: string[]; checkpoint: boolean; general: TaskBrief }
@@ -57,7 +57,7 @@ export function parseTemplate(value: unknown): TemplateDefinition {
 export function templateSeed(team: TeamState): TemplateDefinition {
   return parseTemplate({name:team.name,description:'',inputs:'',tags:[],
     members:team.members.filter(m=>m.status!=='removed'||team.tasks.some(t=>t.assignee===m.name)).map(m=>({name:m.name,summary:m.summary??'',role:m.role??'',executionPrompt:m.executionPrompt??''})),
-    tasks:team.tasks.map(t=>({id:t.id,subject:t.subject,assignee:t.checkpoint?'':t.assignee??'',dependencies:t.dependencies,checkpoint:!!t.checkpoint,general:t.layers?.general??emptyBrief()})),
+    tasks:team.tasks.map(t=>({id:t.id,subject:t.subject,assignee:t.checkpoint?'':t.assignee??'',dependencies:t.dependencies,checkpoint:!!t.checkpoint,general:emptyBrief()})),
     positions:Object.fromEntries(Object.entries(team.workflow?.positions??{}).filter(([key])=>team.tasks.some(t=>key===`task:${t.id}`)))})
 }
 export function templateTopology(value: Pick<TemplateDefinition,'members'|'tasks'>): string {
@@ -73,11 +73,11 @@ export function instantiateTemplate(template:TemplateVersion, id:string, captain
   return {id,name:name.trim()||clean.name,description:goal.trim(),captainSessionId,createdAt:now,phase:'staged',planReviewState:'awaiting_review',
     members:clean.members.map(m=>({...m,id:'',status:'idle',joinedAt:now,specificPrompt:''})),
     tasks:clean.tasks.map(t=>({id:t.id,subject:t.subject,assignee:t.assignee||undefined,dependencies:[...t.dependencies],kind:'work',status:'pending',attempt:0,createdAt:now,updatedAt:now,
-      layers:{general:structuredClone(t.general),specific:emptyBrief()},description:'',workflowConfigPending:true,workflowPaused:true,...t.checkpoint?{checkpoint:{round:1,history:[]}}:{}})),
+      description:'',workflowConfigPending:true,workflowPaused:true,...t.checkpoint?{checkpoint:{round:1,history:[]}}:{}})),
     taskSeq:Math.max(0,...clean.tasks.map(t=>/^t\d+$/.test(t.id)?Number(t.id.slice(1)):0)),
-    workflow:{positions:structuredClone(clean.positions),discussions:{},history:[],templateSource:{id:template.id,version:template.version,name:template.name}}}
+    workflow:{templateDefinition:structuredClone(clean),positions:structuredClone(clean.positions),discussions:{},history:[],templateSource:{id:template.id,version:template.version,name:template.name}}}
 }
-/** The adaptation agent may fill the instance, never alter the saved graph or generic layer. */
+/** The adaptation agent may fill the instance, never alter the saved graph or template definition. */
 export function validateAdaptation(team:TeamState, operations:WorkflowOperation[]):void {
   if(!team.workflow?.templateSource || team.phase!=='staged')throw new Error('统一适配仅用于尚未启动的模板流程')
   const seen=new Set<string>()
@@ -86,8 +86,8 @@ export function validateAdaptation(team:TeamState, operations:WorkflowOperation[
       if(!team.members.some(m=>m.name===op.name)||Object.keys(op).some(k=>!['action','name','specificPrompt'].includes(k)))throw new Error('适配只能修改成员本次补充指令')
     }else if(op.action==='update_task'){
       const task=team.tasks.find(t=>t.id===op.id)
-      if(!task || seen.has(op.id) || !op.layers || Object.keys(op).some(k=>!['action','id','layers','adaptationIssue','confirmConfiguration'].includes(k)))throw new Error('适配必须保留节点、名称、负责人和连线，只填写本次层')
-      if(JSON.stringify(op.layers.general)!==JSON.stringify(task.layers?.general))throw new Error('适配不能覆盖通用任务')
+      if(!task || seen.has(op.id) || typeof op.description !== 'string' || Object.keys(op).some(k=>!['action','id','description','adaptationIssue','confirmConfiguration'].includes(k)))throw new Error('适配必须保留节点、名称、负责人和连线，只填写完整任务描述')
+      if(!op.description.trim() && !op.adaptationIssue?.trim())throw new Error('请填写完整任务描述或说明缺少的信息')
       seen.add(op.id)
     }else throw new Error('适配不能增删节点或成员')
   }

@@ -10,14 +10,13 @@
  */
 import type { Context } from '@deepseek-ai/cordis';
 import type { Agent } from '@deepseek-ai/dsh-agent';
-import { type TaskLayers } from './task-layers.ts';
 import { type MemberToolPolicy } from './tool-policies.ts';
 import type { ArtifactSnapshot } from './types.ts';
 import { type TeamState, type TeamTask } from './types.ts';
 export { steerCaptainReport } from './members.ts';
 /** Resolved plugin config consumed by the tools. */
 export interface ToolsConfig {
-    /** Optional personal library location; defaults to ~/.dsh-teamflow/templates. */
+    /** Personal template library; defaults to ~/.dsh-teamflow/templates. */
     templateDirectory?: string;
     /** State directory name under the captain's workspace. */
     stateDir: string;
@@ -55,16 +54,12 @@ export type StagedPlanMutation = {
     action: 'update_task';
     taskId: string;
     subject: string;
-    layers?: TaskLayers;
-    specific?: import('./task-layers.ts').TaskBrief;
-    expectedGeneral?: import('./task-layers.ts').TaskBrief;
     description?: string | null;
     assignee?: string | null;
     dependencies: string[];
 } | {
     action: 'add_task';
     subject: string;
-    layers?: TaskLayers;
     description?: string | null;
     assignee?: string | null;
     dependencies: string[];

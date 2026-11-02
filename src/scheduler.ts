@@ -16,7 +16,7 @@ import type { Context } from '@deepseek-ai/cordis'
 import type { Agent, AgentStatus } from '@deepseek-ai/dsh-agent'
 import type { SessionId } from '@deepseek-ai/dsh-session'
 import { join } from 'node:path'
-import { taskText, taskNeedsConfiguration } from './task-layers.ts'
+import { taskText, taskNeedsConfiguration } from './task-description.ts'
 import { deliverToMember } from './members.ts'
 import { isCurrentMail, mailboxPrompt } from './mailbox.ts'
 import {

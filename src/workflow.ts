@@ -5,7 +5,7 @@ import type { WorkflowOperation, WorkflowProposal, WorkflowState } from './workf
 import { validateCreateTask } from './quality-gates.ts'
 import { sanitizeKey } from './state.ts'
 import { rerunImpact, resetTaskForRerun } from './task-rerun.ts'
-import { parseLayers, taskText, taskNeedsConfiguration } from './task-layers.ts'
+import { taskNeedsConfiguration } from './task-description.ts'
 
 export function workflowState(team: TeamState): WorkflowState {
   return team.workflow ??= { positions: {}, discussions: {}, history: [] }
@@ -13,7 +13,7 @@ export function workflowState(team: TeamState): WorkflowState {
 export function workflowFingerprint(team: TeamState): string {
   // Discussion turns and layout moves do not invalidate a proposal; execution does.
   return createHash('sha256').update(JSON.stringify({ phase: team.phase, halted: team.halted,
-    goal: team.description, templateSource: team.workflow?.templateSource, members: team.members, tasks: team.tasks })).digest('hex')
+    goal: team.description, templateSource: team.workflow?.templateSource, templateDefinition: team.workflow?.templateDefinition, members: team.members, tasks: team.tasks })).digest('hex')
 }
 function object(value: unknown): Record<string, unknown> {
   if (value === null || typeof value !== 'object' || Array.isArray(value)) throw new Error('操作必须是对象')
@@ -36,7 +36,7 @@ export function parseWorkflowOperations(value: unknown): WorkflowOperation[] {
     const op = object(raw), action = op['action']
     if (typeof action !== 'string' || !action.trim()) throw new Error('每个修改对象必须包含 action 字段，例如 {"action":"update_member","name":"planner","summary":"职责说明"}；参数与 action 同层，不使用 type、op 或嵌套 payload')
     const fields = (names: string[]) => Object.fromEntries(names.flatMap(name => op[name] === undefined ? [] : [[name, text(op[name], name)]]))
-    const layered = op['layers'] === undefined ? {} : {layers:parseLayers(op['layers'], `operations[${index}].layers`)}
+    if (op['layers'] !== undefined) throw new Error('任务只使用 description 字符串；通用要求请在保存模板时提炼')
     for (const field of ['configurationPending', 'confirmConfiguration']) if (op[field] !== undefined && typeof op[field] !== 'boolean') throw new Error(`${field} 必须是布尔值`)
     switch (action) {
       case 'add_member': return { action, name: text(op['name'], 'name', true)!, summary: text(op['summary'], 'summary', true)!, ...fields(['role', 'executionPrompt', 'specificPrompt', 'provider', 'model', 'reasoningEffort']) }
@@ -44,14 +44,14 @@ export function parseWorkflowOperations(value: unknown): WorkflowOperation[] {
       case 'remove_member': return { action, name: text(op['name'], 'name', true)! }
       case 'add_task': {
         if (op['checkpoint'] !== undefined && typeof op['checkpoint'] !== 'boolean') throw new Error('checkpoint 必须是布尔值')
-        return { action, subject: text(op['subject'], 'subject', true)!, ...fields(['id', 'description', 'assignee', 'adaptationIssue']), ...layered,
+        return { action, subject: text(op['subject'], 'subject', true)!, ...fields(['id', 'description', 'assignee', 'adaptationIssue']),
           dependencies: strings(op['dependencies'], 'dependencies'), checkpoint: op['checkpoint'] === true, ...op['configurationPending'] === true ? { configurationPending: true } : {} }
       }
-      case 'update_task': return { action, id: text(op['id'], 'id', true)!, ...fields(['subject', 'description', 'assignee', 'adaptationIssue']), ...layered,
+      case 'update_task': return { action, id: text(op['id'], 'id', true)!, ...fields(['subject', 'description', 'assignee', 'adaptationIssue']),
         ...op['confirmConfiguration'] === true ? { confirmConfiguration: true } : {},
         ...op['dependencies'] === undefined ? {} : { dependencies: strings(op['dependencies'], 'dependencies') } }
       case 'remove_task': return { action, id: text(op['id'], 'id', true)! }
-      case 'rerun_task': return { action, id: text(op['id'], 'id', true)!, ...fields(['instructions', 'subject', 'description', 'assignee', 'adaptationIssue']), ...layered }
+      case 'rerun_task': return { action, id: text(op['id'], 'id', true)!, ...fields(['instructions', 'subject', 'description', 'assignee', 'adaptationIssue']) }
       case 'rework': return { action, id: text(op['id'], 'id', true)!, taskIds: strings(op['taskIds'], 'taskIds'), instructions: text(op['instructions'], 'instructions', true)! }
       default: throw new Error(`未知修改操作：${String(action)}`)
     }
@@ -72,20 +72,10 @@ function editable(task: TeamTask, reconnectRejected = false): void {
     throw new Error(`任务 ${task.id} 已开始；请先停止该任务，已结束任务请使用修改并重跑`)
   }
 }
-function updateLayers(task:TeamTask, op:{description?:string;layers?:import('./task-layers.ts').TaskLayers;adaptationIssue?:string}, goal?:string):void {
-  if(op.layers){
-    const layers=parseLayers(op.layers)
-    if(JSON.stringify(layers.general)!==JSON.stringify(task.layers?.general))task.workflowConfigPending=true
-    task.layers=layers
-    task.specificContractVersion=1
-    task.specificSourceGoal=goal ?? ''
-  }else if(op.description!==undefined && task.layers){
-    // Legacy task editors edit only the instance requirements; they cannot erase the generic contract.
-    task.layers.specific.requirements=op.description
-  }
+function updateDescription(task:TeamTask, op:{description?:string;adaptationIssue?:string}):void {
+  if(op.description!==undefined){task.description=op.description;if(!op.description.trim())task.workflowConfigPending=true}
   if(op.adaptationIssue!==undefined)task.adaptationIssue=op.adaptationIssue
-  if(task.adaptationIssue?.trim() || task.layers && (!task.layers.general.requirements.trim() || !task.layers.specific.requirements.trim()))task.workflowConfigPending=true
-  if(task.layers)task.description=taskText(task)
+  if(task.adaptationIssue?.trim())task.workflowConfigPending=true
 }
 export function validateWorkflowGraph(team: TeamState): void {
   const members = new Set(team.members.filter(m => m.status !== 'removed').map(m => m.name))
@@ -161,9 +151,8 @@ export function applyWorkflowOperations(original: TeamState, operations: Workflo
         team.taskSeq = Math.max(team.taskSeq, sequence)
       }
       team.tasks.push({ id, subject: op.subject, description: op.description, adaptationIssue: op.adaptationIssue, assignee: op.checkpoint ? undefined : op.assignee || undefined,
-        ...op.layers ? {layers:parseLayers(op.layers),specificContractVersion:1,specificSourceGoal:team.description??'',description:taskText({layers:op.layers})} : {},
         dependencies: op.dependencies, kind: 'work', status: 'pending', attempt: 0, createdAt: now, updatedAt: now,
-        ...op.configurationPending || taskNeedsConfiguration({layers:op.layers,specificContractVersion:1}) ? { workflowConfigPending: true, workflowPaused: true, workflowAwaitingStart: true } : {},
+        ...op.configurationPending || !!op.adaptationIssue?.trim() ? { workflowConfigPending: true, workflowPaused: true, workflowAwaitingStart: true } : {},
         ...op.checkpoint ? { checkpoint: { round: 1, history: [] } } : {} })
     } else if (op.action === 'update_task') {
       const task = taskOf(team, op.id)
@@ -172,19 +161,16 @@ export function applyWorkflowOperations(original: TeamState, operations: Workflo
       // dependency edit that adds an input may reopen it; keep other edits fenced.
       const reconnectRejected = task.checkpoint?.decision === 'reject'
         && !!op.dependencies?.some(id => !task.dependencies.includes(id))
-        && op.subject === undefined && op.description === undefined && op.layers === undefined && op.adaptationIssue === undefined && op.assignee === undefined && !op.confirmConfiguration
+        && op.subject === undefined && op.description === undefined && op.adaptationIssue === undefined && op.assignee === undefined && !op.confirmConfiguration
       editable(task, reconnectRejected)
-      if (op.subject !== undefined && op.subject !== task.subject && task.layers) task.workflowConfigPending = true
       if (op.subject !== undefined) task.subject = op.subject
       if (op.description !== undefined) task.description = op.description
-      updateLayers(task,op,team.description)
+      updateDescription(task,op)
       if (op.assignee !== undefined) task.assignee = op.assignee || undefined
       if (op.dependencies !== undefined) task.dependencies = op.dependencies
       if (op.confirmConfiguration && task.workflowConfigPending) {
         if(task.adaptationIssue?.trim())throw new Error('请先处理适配问题，并明确清除问题说明')
-        if(task.layers && (!task.layers.general.requirements.trim() || !task.layers.specific.requirements.trim()))throw new Error('请填写通用任务和本次任务要求')
         if (!task.subject.trim() || !task.description?.trim()) throw new Error(`请填写 ${task.subject} 的名称与任务／验收要求，再完成配置`)
-        if (task.layers) { task.specificContractVersion = 1; task.specificSourceGoal = team.description ?? '' }
         task.workflowConfigPending = false
         if (team.phase === 'staged') task.workflowPaused = false
       }
@@ -202,10 +188,8 @@ export function applyWorkflowOperations(original: TeamState, operations: Workflo
       if (original.checkpoint || !['completed', 'failed', 'cancelled'].includes(original.status)) throw new Error('只能重跑已结束的执行任务')
       if (op.subject !== undefined) original.subject = op.subject
       if (op.description !== undefined) original.description = op.description
-      updateLayers(original,op,team.description)
+      updateDescription(original,op)
       if(original.adaptationIssue?.trim())throw new Error('请先处理适配问题')
-      if(original.layers && (!original.layers.general.requirements.trim() || !original.layers.specific.requirements.trim()))throw new Error('请填写通用任务和本次任务要求')
-      if (original.layers) { original.specificContractVersion=1; original.specificSourceGoal=team.description ?? '' }
       original.workflowConfigPending=false
       if (op.assignee !== undefined) original.assignee = op.assignee || undefined
       const owner = team.members.find(member => member.name === original.assignee && member.status !== 'removed')
@@ -242,7 +226,6 @@ export function applyWorkflowOperations(original: TeamState, operations: Workflo
         const id = nextTaskId(team); mapping.set(task.id, id)
         team.tasks.push({ id, subject: `${task.subject} · 返工 ${gate.checkpoint.round + 1}`,
           description: `${task.description ?? ''}\n\n返工要求：${op.instructions}`, assignee: task.assignee,
-          ...task.layers?{specificContractVersion:task.specificContractVersion,specificSourceGoal:task.specificSourceGoal,layers:{general:structuredClone(task.layers.general),specific:{...task.layers.specific,requirements:`${task.layers.specific.requirements}\n\n返工要求：${op.instructions}`}},adaptationIssue:task.adaptationIssue,workflowConfigPending:taskNeedsConfiguration(task)}:{},
           dependencies: task.dependencies.map(dep => mapping.get(dep) ?? dep), kind: task.kind,
           objective: task.objective, acceptance: task.acceptance, inScope: task.inScope, outOfScope: task.outOfScope, verify: task.verify,
           deliverables: task.deliverables, nonGoals: task.nonGoals, coverageOf: task.coverageOf, round: task.round,
@@ -269,7 +252,7 @@ export function applyWorkflowProposal(team: TeamState, proposal: WorkflowProposa
   if (proposal.status !== 'pending' || proposal.base !== workflowFingerprint(team)) throw new Error('团队状态已变化，请重新生成修改预览')
   const updated = applyWorkflowOperations(team, parseWorkflowOperations(proposal.operations), maxMembers)
   const state = workflowState(updated)
-  for (const discussion of Object.values(state.discussions)) if (discussion.proposal?.id === proposal.id) { discussion.proposal = { ...proposal, status: 'applied' }; delete discussion.generalDraft }
+  for (const discussion of Object.values(state.discussions)) if (discussion.proposal?.id === proposal.id) { discussion.proposal = { ...proposal, status: 'applied' } }
   state.history.push({ ...proposal, status: 'applied' })
   return updated
 }

@@ -56,94 +56,30 @@ const REAL_PLAN = {
   tasks: [{ id: 't1', subject: 'survey the roster', assignee: 'scout' }],
 }
 
-await test('captain creates general contracts first and specializes them without starting members', async () => {
-  const fixture=await mount()
-  try {
-    const captain=fixture.createCaptain('captain-two-stage')
-    const general={requirements:'Validate input against the agreed range',deliverables:'Implementation and tests',acceptance:'Boundary tests pass'}
-    const plan={members:[{name:'worker',summary:'Implement and test'}],tasks:[{id:'port',subject:'Port validation',assignee:'worker',dependencies:[],general}]}
-    const rejected=await fixture.execute(captain,{name:'Unsafe general only',approval:'automatic',plan})
-    assert.equal(rejected.isError,true)
-    const created=await fixture.execute(captain,{name:'Two stage',description:'Validate ports 1–65535',approval:'required',plan})
-    assert.equal(created.isError,false,JSON.stringify(created))
-    const id=created.value.team_id
-    let saved=await fixture.loadTeam(id)
-    const planning=JSON.parse(created.value.planning_context)
-    assert.equal(planning.goal,'Validate ports 1–65535')
-    assert.equal(planning.tasks[0].task_id,saved.tasks[0].id)
-    assert.deepEqual(planning.tasks[0].general,general)
-    assert.match(JSON.stringify(created.content),/Stage 2 context/)
-    const recovered=await fixture.executeTool(captain,'agent_teams_status',{})
-    assert.equal(recovered.isError,false,JSON.stringify(recovered))
-    assert.deepEqual(JSON.parse(recovered.value.planning_context),planning)
-    assert.match(JSON.stringify(recovered.content),/Stage 2 context/)
-    assert.equal(saved.phase,'staged');assert.equal(saved.tasks[0].layers.specific.requirements,'')
-    assert.ok(saved.tasks[0].workflowConfigPending);assert.equal(saved.members[0].id,'')
-    assert.equal(saved.planReviewState,'generating')
-    assert.doesNotMatch(JSON.stringify(created.content),/wait for the user/)
-    await fixture.emit('agent/turn-stopping',{agent:captain,turn:1,signal:new AbortController().signal})
-    assert.equal(captain.steering.length,1)
-    assert.match(JSON.stringify(captain.steering[0]),/Validate input against the agreed range/)
-    assert.match(JSON.stringify(captain.steering[0]),/Validate ports 1–65535/)
-    const early=await fixture.executeTool(captain,'agent_teams_approve',{confirmation:'Run the team'})
-    assert.equal(early.isError,true)
-    const specific={requirements:'Accept only number integers 1–65535; reject other input',deliverables:'validator.mjs and tests',acceptance:'Check 1, 65535, 0, 65536 and non-number inputs'}
-    const edited=await fixture.executeTool(captain,'agent_teams_edit_plan',{operations:[{action:'update_task',task_id:saved.tasks[0].id,specific}]})
-    assert.equal(edited.isError,false,JSON.stringify(edited))
-    saved=await fixture.loadTeam(id)
-    assert.deepEqual(saved.tasks[0].layers,{general,specific})
-    assert.equal(saved.tasks[0].workflowConfigPending,false);assert.equal(saved.phase,'staged');assert.equal(saved.members[0].id,'')
-    assert.equal(saved.planReviewState,'awaiting_review')
-    assert.equal(edited.value.planning_context,undefined)
-    await fixture.emit('agent/turn-stopping',{agent:captain,turn:1,signal:new AbortController().signal})
-    assert.equal(captain.steering.length,1)
-  } finally { await fixture.dispose() }
-})
-
-await test('captain completion guard is bounded and respects cancellation, feedback, errors and idle turns', async () => {
+await test('one captain create call produces complete runnable task descriptions without layer fields', async () => {
   const fixture = await mount()
   try {
-    const captain = fixture.createCaptain('captain-completion-boundaries')
-    const result = await fixture.execute(captain, { name: 'Completion boundaries', approval: 'required', plan: {
-      members: [{ name: 'worker' }], tasks: [{ id: 'one', subject: 'Implement', assignee: 'worker', general: { requirements: 'General constraint', deliverables: 'Code', acceptance: 'Tests pass' } }],
-    } })
-    assert.equal(result.isError, false, JSON.stringify(result))
-    const stop = (turn = 1, signal = new AbortController().signal) => fixture.emit('agent/turn-stopping', { agent: captain, turn, signal })
-    for (let n = 0; n < 4; n++) {
-      await fixture.executeTool(captain, 'agent_teams_status', {})
-      await stop()
-    }
-    assert.equal(captain.steering.length, 3, 'Status calls cannot reset the same-turn budget')
-    await fixture.emit('agent/status', { agent: captain, status: 'idle' })
-    await stop(2)
-    assert.equal(captain.steering.length, 3, 'Unrelated new turns do not restart abandoned planning')
-    await fixture.executeTool(captain, 'agent_teams_status', {})
-    await stop(2)
-    assert.equal(captain.steering.length, 4, 'Explicit status can resume a saved general draft')
-    const controller = new AbortController(); controller.abort()
-    await stop(2, controller.signal)
-    await stop(3)
-    assert.equal(captain.steering.length, 4)
-    await fixture.executeTool(captain, 'agent_teams_status', {})
-    await fixture.emit('agent/error', { agent: captain, turn: 3, step: 1, error: Error('Provider failed') })
-    await stop(3)
-    assert.equal(captain.steering.length, 4)
-    for (const override of [{ planReviewState: 'awaiting_feedback' }, { halted: true }, { workflow: { positions: {}, discussions: {}, history: [] } }]) {
-      const team = await fixture.loadTeam(result.value.team_id)
-      await fixture.executeTool(captain, 'agent_teams_status', {})
-      await fixture.saveTeam({ ...team, ...override })
-      await stop(4)
-      assert.equal(captain.steering.length, 4)
-      await fixture.saveTeam(team)
-    }
-    const saved = await fixture.loadTeam(result.value.team_id)
-    assert.equal(saved.phase, 'staged')
-    assert.equal(saved.tasks[0].workflowConfigPending, true)
-    assert.equal(saved.members[0].id, '')
+    const captain=fixture.createCaptain('captain-single-description')
+    const plan={members:[{name:'worker',role:'Implement and test'}],tasks:[{id:'build',subject:'Port validation',assignee:'worker',dependencies:[],description:'Accept integer ports 1–65535; deliver validator and boundary tests. Reject all other inputs.'}]}
+    const invalid=await fixture.execute(captain,{name:'Obsolete layers',approval:'required',plan:{...plan,tasks:[{...plan.tasks[0],general:{requirements:'Old API',deliverables:'Code',acceptance:'Tests'}}]}})
+    assert.equal(invalid.isError,true,'The retired general parameter must not be accepted')
+    const created=await fixture.execute(captain,{name:'Single description',description:'Validate ports',approval:'required',plan})
+    assert.equal(created.isError,false,JSON.stringify(created))
+    const saved=await fixture.readCreated(created.value.team_id)
+    assert.equal(saved.tasks[0].description,plan.tasks[0].description)
+    assert.equal(saved.tasks[0].layers,undefined)
+    assert.ok(!saved.tasks[0].workflowConfigPending)
+    assert.equal(saved.planReviewState,'awaiting_review')
+    assert.ok(saved.members.every(member=>!member.id))
+    assert.equal(created.value.planning_context,undefined)
+    assert.doesNotMatch(JSON.stringify(created.content),/Stage 2|general plan/)
   } finally { await fixture.dispose() }
 })
 
-/** Mount the shipped tools over the real ToolRuntime with minimal host services. */
+/**
+ * Mount the real tool runtime over the shipped `agent_teams_create`.
+ * @returns the dispatch helper plus real on-disk team readers.
+ */
 async function mount() {
   const workspace = await mkdtemp(join(tmpdir(), 'agentteams-234-'))
   const host = new Context()
@@ -154,9 +90,8 @@ async function mount() {
   const definitions = []
   const agents = []
   const noop = () => {}
-  const listeners = new Map()
   registerAgentTeamsTools({
-    on: (name, fn) => { const list = listeners.get(name) ?? []; list.push(fn); listeners.set(name, list); return noop },
+    on: () => noop,
     effect: setup => setup(),
     logger: { warn: noop, debug: noop },
     tools: { register: definition => definitions.push(definition) },
@@ -180,8 +115,6 @@ async function mount() {
     const agent = {
       id,
       status: 'idle',
-      steering: [],
-      steer(message) { this.steering.push(message) },
       options: { provider: 'fake', model: 'fake-model' },
       session: {
         id,
@@ -230,7 +163,6 @@ async function mount() {
   }
   return {
     createCaptain,
-    async emit(name, payload) { for (const fn of listeners.get(name) ?? []) await fn(payload) },
     execute,
     executeTool,
     loadTeam,

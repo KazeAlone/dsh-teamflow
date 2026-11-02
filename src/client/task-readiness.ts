@@ -13,7 +13,6 @@ export function taskReadiness(team: TeamState, task: TeamTask, l: WorkflowText =
   if (task.status === 'completed') return result(task.checkpoint ? l("验收通过") : l("已完成"))
   if (task.status === 'failed') return result(l("执行失败"), l("查看执行记录中的失败原因，再决定是否修改并重跑。"))
   if (task.status === 'cancelled') return result(l("已取消"))
-  if (task.layers?.specific.requirements.trim() && task.specificContractVersion !== 1 && task.status === 'pending') return result(l("待确认完整要求"), l("旧版本次层可能只有补充说明。请使用 AI 重新整理完整本次要求，或核对后保存确认。"))
   if (task.workflowConfigPending) return result(l("待配置"), l("节点已保存，可先连线；请填写要求并完成配置。"))
   if (team.halted) return result(l("团队已停止"), l("团队停止期间不会派发此任务。"))
   if (control.stopping) return result(l(zh[control.label]), l("已禁止再次调度，正在等待执行会话停止；失败时可重试停止。"))
