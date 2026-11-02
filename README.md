@@ -4,7 +4,7 @@ English · [简体中文](./README_ZH.md)
 
 This is the [yogurtss/dsh-teamflow](https://github.com/yogurtss/dsh-teamflow) development fork of [NanmiCoder/dsh-agent-teams](https://github.com/NanmiCoder/dsh-agent-teams). Discuss a goal, form an initial team, then adjust member instructions, task handoffs and human checkpoints.
 
-**Install this fork from GitHub or a local build.** Its new package name is `@yogurtss/dsh-teamflow`; the development version is `0.2.5-dev.9`. It is not published to npm. The upstream package is `@nanmicoder/dsh-agent-teams`.
+**Install this fork from GitHub or a local build.** Its new package name is `@yogurtss/dsh-teamflow`; the development version is `0.2.5-dev.10`. It is not published to npm. The upstream package is `@nanmicoder/dsh-agent-teams`.
 
 Click **团队与流程** at the top of the TeamFlow activity panel or team page to open the workbench. The button shows pending changes and human reviews; completed and archived teams also open the full canvas, including task requirements, results and verification records.
 
@@ -13,7 +13,11 @@ Human checkpoints require opening their evidence and clicking **通过验收** o
 Use `/teamflow` to start. Only `/teamflow` and `/teamflow-<profile>` commands are registered; the old `/agent-teams` command and its profile aliases have been removed. Use `/teamflow --profile <name> <goal>` to select a profile explicitly. The `.agent-teams/` data directory, internal `agent_teams_*` tools and session event protocol remain unchanged to preserve existing records. Historical reports retain the names and screenshots captured at the time.
 
 
-## 0.2.5-dev.9 · Discussions stay inside Workflow
+## 0.2.5-dev.10 · Complete task creation before review
+
+`/teamflow` automatically continues from general contracts to complete instance contracts, including when a model stops early or edits only some tasks. Incomplete drafts show generation status and cannot be approved; complete plans need only the final approval to run. See [creation completion](./release-notes/v0.2.5-dev.10.md).
+
+## Discussions stay inside Workflow
 
 Flow, task, member and review discussions stay inside the Workflow window. They no longer appear alongside main chats in the Session list. Existing discussion history remains available in Workflow; no session is deleted or archived. Update the development build and refresh/restart the client to load this behavior. See [workflow-only discussions](./release-notes/v0.2.5-dev.9.md).
 

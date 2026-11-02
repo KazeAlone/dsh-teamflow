@@ -701,7 +701,7 @@ function LocalizedTeamSection({ team, modelDirectory, onContinuePlanning, onDisc
               : team.phase === 'staged'
                 ? t(team.planReviewState === 'awaiting_feedback'
                   ? 'captain.summary.awaitingFeedback'
-                  : 'captain.summary.staged', { tasks: team.tasks.length, members: team.members.length })
+                  : team.planReviewState === 'generating' ? 'captain.summary.generating' : 'captain.summary.staged', { tasks: team.tasks.length, members: team.members.length })
                 : t('captain.summary', { tasks: assignedCount, members: team.members.length })}</span>
           </span>
           <span className={css.captainState} data-busy={captainBusy || busyCount > 0}>
@@ -713,7 +713,7 @@ function LocalizedTeamSection({ team, modelDirectory, onContinuePlanning, onDisc
               : team.phase === 'staged'
                 ? t(team.planReviewState === 'awaiting_feedback'
                   ? 'captain.state.awaitingFeedback'
-                  : 'captain.state.staged')
+                  : team.planReviewState === 'generating' ? 'captain.state.generating' : 'captain.state.staged')
               : busyCount > 0
                 ? t('captain.state.working', { count: busyCount })
                 : t(allCompleted

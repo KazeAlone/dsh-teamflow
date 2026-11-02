@@ -165,6 +165,11 @@ export declare const zh: {
     'team.ended': string;
     'plan.badge': string;
     'plan.title': string;
+    'plan.generatingTitle': string;
+    'plan.generatingBadge': string;
+    'plan.generatingHint': string;
+    'captain.summary.generating': string;
+    'captain.state.generating': string;
     'plan.description': string;
     'plan.member.role': string;
     'plan.member.provider': string;
@@ -433,6 +438,11 @@ export declare const en: {
     'team.ended': string;
     'plan.badge': string;
     'plan.title': string;
+    'plan.generatingTitle': string;
+    'plan.generatingBadge': string;
+    'plan.generatingHint': string;
+    'captain.summary.generating': string;
+    'captain.state.generating': string;
     'plan.description': string;
     'plan.member.role': string;
     'plan.member.provider': string;

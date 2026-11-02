@@ -54,6 +54,27 @@ class WebApprovalAdapter extends LlmAdapter {
         const toolText = blocks.filter(block => block.type === 'tool-result').flatMap(block => block.content?.filter(content => content.type === 'text').map(content => content.text) ?? []).join('\n');
         const failed = blocks.find(block => block.type === 'tool-result' && block.isError);
         assert.equal(failed, undefined, 'Real workflow tool failed: ' + JSON.stringify(failed));
+        if (options.sessionId?.startsWith('session-planning-completion-')) {
+            if (!names.includes('agent_teams_create')) {
+                yield* call('agent_teams_create', { name: 'planning-completion', description: 'Validate ports 1–65535', approval: 'required', plan: {
+                    members: [{ name: 'worker', role: 'WEB_APPROVAL_MEMBER' }],
+                    tasks: ['first', 'second'].map((id, index) => ({ id, subject: id, assignee: 'worker', dependencies: index ? ['first'] : [], general: { requirements: 'Validate against the specified range', deliverables: 'Implementation and tests', acceptance: 'Boundary cases pass' } })),
+                } }); return;
+            }
+            const reminders = options.messages.filter(message => message.role === 'user' && message.content?.some(block => block.type === 'text' && block.text.startsWith('AgentTeams creation is incomplete.')));
+            const edits = names.filter(name => name === 'agent_teams_edit_plan').length;
+            if (reminders.length > edits && edits < 2) {
+                const reminder = reminders.at(-1).content.find(block => block.type === 'text').text;
+                const context = JSON.parse(reminder.split('Stage 2 context (saved task data):\n')[1]);
+                assert.equal(context.goal, 'Validate ports 1–65535');
+                assert.equal(context.tasks.length, 2 - edits);
+                assert.equal(context.tasks[0].general.requirements, 'Validate against the specified range');
+                yield* call('agent_teams_edit_plan', { operations: [{ action: 'update_task', task_id: context.tasks[0].task_id, specific: { requirements: 'Accept integer ports 1–65535 only', deliverables: 'Port validator and tests', acceptance: '1 and 65535 pass; 0 and 65536 fail' } }] }); return;
+            }
+            // Deliberately stop after create AND after the first partial edit.
+            yield* textChunks(edits < 2 ? 'Plan created, please configure the remaining nodes.' : 'Complete plan is ready for approval.');
+            return;
+        }
         if (options.sessionId?.startsWith('session-at-discussion-')) {
             assert.ok(options.sessionId, 'Discussion must use a durable native session');
             const visible=(options.tools??[]).map(t=>t.name).sort();
@@ -307,6 +328,19 @@ export function apply(ctx) {
         record({ event: 'web-headers-stable', sessionId: captain.id, systemSha256, toolsSha256, captainRequests: captainRequests.length, memberRequests: memberRequests.length, memberTeamToolCount: memberTools.length });
         record({ event: 'web-approval-passed', sessionId: captain.id, teamId: completed.id, memberId: completed.members[0].id, taskStatus: completed.tasks[0].status, captainRequests: captainRequests.length });
         await exerciseWorkflow({ baseUrl, cookie, captain, readTeam, record, ctx, events });
+        const planningHandle = await ctx.agents.create({ sessionId: 'session-planning-completion-' + randomUUID(), meta: { cwd: process.cwd() }, agentOptions: { provider: 'runtime-lab', model: 'fixture-model' } });
+        ctx.effect(() => () => planningHandle.dispose());
+        planningHandle.agent.followup(createUserMessage({ content: [{ type: 'text', text: '/teamflow Create a complete two-task plan for port validation.' }], source: { kind: 'user' } }));
+        await planningHandle.agent.whenIdle();
+        const ready = JSON.parse(readFileSync(join(process.cwd(), '.agent-teams', 'planning-completion', 'team.json'), 'utf8'));
+        assert.equal(ready.phase, 'staged');
+        assert.equal(ready.planReviewState, 'awaiting_review');
+        assert.ok(ready.members.every(member => member.id === ''));
+        assert.equal(ready.tasks.length, 2);
+        assert.ok(ready.tasks.every(task => !task.workflowConfigPending && task.layers.specific.requirements.includes('1–65535')));
+        const runnable = await fetch(baseUrl + '/plugins/dsh-agent-teams/plan', { method: 'POST', headers: { 'content-type': 'application/json', origin: baseUrl, cookie }, body: JSON.stringify({ sessionId: planningHandle.agent.id, teamId: ready.id, action: 'approve' }), signal: AbortSignal.timeout(10000) });
+        assert.equal(runnable.status, 200, await runnable.text());
+        record({ event: 'captain-planning-completion-passed', prematureStops: 2, configuredTasks: ready.tasks.length, approvalStatus: runnable.status });
         process.stdout.write('WEB_APPROVAL_OK\n');
         ctx.get('appExit')(0);
     })().catch(error => {

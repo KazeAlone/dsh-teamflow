@@ -42,3 +42,4 @@ assert.deepEqual(trace.find(row=>row.event==='workflow-native-request')?.tools.f
 assert.ok(trace.some(row=>row.event==='builtin-english-passed' && row.tasks===9), 'English built-in template must apply through the packaged HTTP route');
 
 assert.ok(trace.some(row=>row.event==='rerun-path-passed' && row.humanGatePreserved && row.automaticContinuation), 'Packaged rerun path must continue after human approval');
+assert.ok(trace.some(row=>row.event==='captain-planning-completion-passed' && row.prematureStops===2 && row.configuredTasks===2 && row.approvalStatus===200), 'One user request must complete captain planning despite premature stops and partial edits');

@@ -626,7 +626,8 @@ export function StagingPlanEditor({ team, modelDirectory, onContinuePlanning, on
   const [feedback, setFeedback] = useState<PlanFeedback>()
   useDismissSuccess(feedback, setFeedback)
   const dependencyLinks = team.tasks.reduce((total, task) => total + task.dependencies.length, 0)
-  const runnable = team.members.length > 0 && team.tasks.length > 0
+  const generating = team.tasks.some(task => !task.checkpoint && task.workflowConfigPending)
+  const runnable = !generating && team.members.length > 0 && team.tasks.length > 0
   const hasPendingEdits = pendingEditors.size > 0 || newTask.trim() !== ''
   const waitingForFeedback = team.planReviewState === 'awaiting_feedback'
 
@@ -723,10 +724,10 @@ export function StagingPlanEditor({ team, modelDirectory, onContinuePlanning, on
       <header className={css.planHeader}>
         <span>
           <span>
-            <strong>{t('plan.title')}</strong>
+            <strong>{t(generating ? 'plan.generatingTitle' : 'plan.title')}</strong>
             <small>{t('plan.readySummary', { members: team.members.length, tasks: team.tasks.length, links: dependencyLinks })}</small>
           </span>
-          <em>{t('plan.badge')}</em>
+          <em>{t(generating ? 'plan.generatingBadge' : 'plan.badge')}</em>
         </span>
         <p>{t('plan.description')}</p>
       </header>
@@ -786,19 +787,19 @@ export function StagingPlanEditor({ team, modelDirectory, onContinuePlanning, on
         className={css.planApproveRow}
         data-armed={discardArmed || undefined}
         data-discard={discardArmed || undefined}
-        data-review-state={waitingForFeedback ? 'awaiting-feedback' : 'awaiting-review'}
+        data-review-state={waitingForFeedback ? 'awaiting-feedback' : generating ? 'generating' : 'awaiting-review'}
       >
         <span className={css.planApproveCopy}>
           <strong>{discardArmed
             ? t('plan.discardConfirmTitle')
             : waitingForFeedback
               ? t('plan.feedbackTitle')
-              : t('plan.approveTitle')}</strong>
+              : generating ? t('plan.generatingTitle') : t('plan.approveTitle')}</strong>
           <small>{discardArmed
             ? t('plan.discardWarning')
             : waitingForFeedback
               ? t('plan.feedbackHint')
-              : hasPendingEdits
+              : generating ? t('plan.generatingHint') : hasPendingEdits
                 ? t('plan.pendingEdits')
                 : t('plan.approveHint', { members: team.members.length, tasks: team.tasks.length })}</small>
         </span>

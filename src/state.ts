@@ -933,6 +933,7 @@ export function describeTeamStateDefect(raw: unknown, expectedId: string): strin
     return `phase ${JSON.stringify(raw['phase'])} must be "staged" or "running"`
   }
   if (raw['planReviewState'] !== undefined
+    && raw['planReviewState'] !== 'generating'
     && raw['planReviewState'] !== 'awaiting_review'
     && raw['planReviewState'] !== 'awaiting_feedback') {
     return `planReviewState ${JSON.stringify(raw['planReviewState'])} is invalid`
@@ -1106,6 +1107,7 @@ function isTeamState(value: unknown, expectedId: string): value is TeamState {
     && (value['taskSeq'] as number) >= 0
     && (value['phase'] === undefined || value['phase'] === 'staged' || value['phase'] === 'running')
     && (value['planReviewState'] === undefined
+      || value['planReviewState'] === 'generating'
       || value['planReviewState'] === 'awaiting_review'
       || value['planReviewState'] === 'awaiting_feedback')
     && (value['approvedAt'] === undefined || isFiniteNumber(value['approvedAt']))

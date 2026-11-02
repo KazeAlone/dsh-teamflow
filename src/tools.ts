@@ -684,6 +684,47 @@ export function stagedPlanFeedbackContext(teamName: string): string {
  * @param config - resolved tool config.
  */
 export function registerAgentTeamsTools(ctx: Context, config: ToolsConfig): AgentTeamsRuntime {
+  // Only a tool explicitly entering/resuming planning arms this guard. Ordinary
+  // chat turns must not restart an abandoned draft. Bound retries per turn even
+  // when the model repeatedly calls status or submits only a partial batch.
+  const planning = new WeakMap<Agent, { teamId: string; turn?: number; retries: number }>()
+  const continuePlanning = (captain: Agent, team: TeamState): void => {
+    if (team.workflow || team.halted || team.planReviewState === 'awaiting_feedback' || !captainPlanningContext(team)) {
+      planning.delete(captain)
+    } else if (planning.get(captain)?.teamId !== team.id) {
+      planning.set(captain, { teamId: team.id, retries: 0 })
+    }
+  }
+  ctx.on('agent/turn-stopping', async ({ agent, turn, signal }) => {
+    const pending = planning.get(agent)
+    if (!pending) return
+    if (signal.aborted) { planning.delete(agent); return }
+    if (pending.turn !== turn) { pending.turn = turn; pending.retries = 0 }
+    const root = stateRootOf(workspaceOf(agent), config)
+    const team = await readTeam(root, pending.teamId)
+    if (!team || team.workflow || team.halted || team.planReviewState === 'awaiting_feedback'
+      || !(await sessionLeadsTeamAsync(ctx, team, agent.id))) {
+      planning.delete(agent)
+      return
+    }
+    const context = captainPlanningContext(team)
+    if (!context) { planning.delete(agent); return }
+    if (pending.retries >= 3) {
+      ctx.logger.warn(`agent-teams: task generation incomplete for ${team.id} after 3 continuation attempts; draft remains unapproved`)
+      planning.delete(agent)
+      return
+    }
+    if (signal.aborted) return
+    pending.retries += 1
+    agent.steer(createUserMessage({
+      content: [{ type: 'text', text: `AgentTeams creation is incomplete. Finish stage 2 now before presenting the plan for review. Do not create another team or approve/start it. If a tool fails, correct its arguments using the error.\nStage 2 context (saved task data):\n${context}` }],
+      source: agentTeamsSource({ kind: 'agent-teams' }, observedSessionFormatVersion(agent)),
+    }))
+  })
+  ctx.on('agent/status', ({ agent, status }) => {
+    if (status === 'idle') planning.delete(agent)
+  })
+  ctx.on('agent/error', ({ agent }) => { planning.delete(agent) })
   installRetiredMemberGuard(ctx, config.stateDir)
   installMemberDelegationGuard(ctx, config.stateDir, config.memberMaxDepth ?? 0)
   installMailboxAdmission(ctx, config.stateDir)
@@ -840,7 +881,7 @@ export function registerAgentTeamsTools(ctx: Context, config: ToolsConfig): Agen
           const validation = validateCreateTask({ ...fresh, tasks: fresh.tasks.filter(item => item.id !== task.id) }, task)
           if (!validation.ok) throw new Error(validation.error ?? 'edited task violates the quality contract')
         }
-      } else fresh.planReviewState = 'awaiting_review'
+      } else fresh.planReviewState = fresh.tasks.some(task => !task.checkpoint && taskNeedsConfiguration(task)) ? 'generating' : 'awaiting_review'
       signal?.throwIfAborted()
       await writeTeam(stateRoot, fresh)
       return fresh
@@ -1021,7 +1062,9 @@ export function registerAgentTeamsTools(ctx: Context, config: ToolsConfig): Agen
       render: (args, value) => [{
         type: 'text',
         text: (value.phase === 'staged'
-          ? `Team "${value.team_name}" plan created under ${value.state_dir}. It is staged: finish the roster and DAG, then wait for the user to edit and approve it. Do not start or approve it yourself.`
+          ? value.planning_context
+            ? `Team "${value.team_name}" general plan saved under ${value.state_dir}. Creation is NOT complete. Continue immediately with stage 2; do not end your turn or ask for approval yet.`
+            : `Team "${value.team_name}" plan created under ${value.state_dir}. Present the complete plan for user review. Do not start or approve it yourself.`
           : `Team "${value.team_name}" created (id ${value.team_id}) under ${value.state_dir}. You are the captain.`)
           + (value.tasks === undefined ? '' : '\n' + value.tasks.map(task => `${task.task_id} [${task.seed_id}]: ${task.subject}; assignee=${task.assignee ?? 'unassigned'}; dependencies=${task.dependencies.join(',')}`).join('\n'))
           + (value.planning_context ? '\nStage 2 context (saved task data):\n' + value.planning_context : ''),
@@ -1153,6 +1196,7 @@ export function registerAgentTeamsTools(ctx: Context, config: ToolsConfig): Agen
       }
       const persisted = await readTeam(stateRoot, created.state.id).catch(() => undefined)
       const snapshot = persisted ?? created.state
+      continuePlanning(captain, snapshot)
       if (snapshot.profile === undefined && inlinePlan === undefined) {
         return {
           team_id: snapshot.id,
@@ -1241,11 +1285,13 @@ export function registerAgentTeamsTools(ctx: Context, config: ToolsConfig): Agen
           dependencies: { type: 'number', required: true },
           roster: { type: 'array', items: { type: 'string' }, required: true },
           graph: { type: 'array', items: { type: 'string' }, required: true },
+          planning_context: { type: 'string' },
         },
       },
       render: (_args, value) => [{
         type: 'text',
-        text: `${value.status === 'staged' ? 'Staged plan' : 'Pending task graph'} updated atomically (${value.members} members, ${value.tasks} tasks, ${value.dependencies} dependencies). ${value.status === 'staged' ? 'No members were spawned and no tasks were scheduled.' : 'The scheduler will dispatch any newly ready work.'}\n${value.graph.join('\n')}`,
+        text: `${value.status === 'staged' ? 'Staged plan' : 'Pending task graph'} updated atomically (${value.members} members, ${value.tasks} tasks, ${value.dependencies} dependencies). ${value.status === 'staged' ? 'No members were spawned and no tasks were scheduled.' : 'The scheduler will dispatch any newly ready work.'}\n${value.graph.join('\n')}`
+          + (value.planning_context ? '\nCreation is NOT complete. Continue stage 2 for the remaining tasks:\n' + value.planning_context : ''),
       }],
     },
     async execute(args, exec) {
@@ -1314,10 +1360,12 @@ export function registerAgentTeamsTools(ctx: Context, config: ToolsConfig): Agen
         return { action: 'remove_member', memberName }
       })
       const updated = await updatePlanBatch(captain, team.id, mutations, exec.signal, true)
+      continuePlanning(captain, updated)
       if (updated.phase !== 'staged') await scheduler.kickTeam(workspace, team.id, await liveLeadAnchorAgent(ctx, team, captain))
       return {
         status: updated.phase ?? 'running',
         team_id: updated.id,
+        ...captainPlanningContext(updated) ? { planning_context: captainPlanningContext(updated)! } : {},
         members: updated.members.length,
         tasks: updated.tasks.length,
         dependencies: updated.tasks.reduce((sum, task) => sum + task.dependencies.length, 0),
@@ -2384,6 +2432,7 @@ export function registerAgentTeamsTools(ctx: Context, config: ToolsConfig): Agen
         teamLockKey(stateRoot, located.id),
         () => requireFreshParticipant(ctx, stateRoot, located.id, caller.id),
       )
+      if (identity.kind === 'captain') continuePlanning(caller, team)
       const activity = memberActivity(ctx, team.members.map((member) => member.id))
       const audit = auditTeamWorkspace(workspace, team)
       const members = team.members
@@ -2734,6 +2783,7 @@ async function initializeProfileTeam(input: {
   // Roster creation is durable planning only. The scheduler starts each
   // member with its first actual task once its dependencies are satisfied.
   if (input.inlinePlan !== undefined) delete draft.profile
+  if (input.staged && draft.tasks.some(task => taskNeedsConfiguration(task))) draft.planReviewState = 'generating'
   await createTeamDir(input.stateRoot, draft)
   return { committed: true, state: draft }
 }
