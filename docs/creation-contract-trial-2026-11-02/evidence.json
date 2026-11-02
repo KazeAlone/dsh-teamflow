@@ -1,0 +1,107 @@
+{
+  "date": "2026-11-02",
+  "scope": "Creation/adaptation only; one live sample per version; no execution members started",
+  "host": "0.2.1-rc.2",
+  "model": {
+    "provider": "deepseek-account",
+    "model": "deepseek-flash",
+    "reasoningEffort": "high"
+  },
+  "template": {
+    "id": "builtin-feature",
+    "version": 1,
+    "nodes": 5
+  },
+  "permissionPreset": "workspace-write",
+  "requestLimit": 12,
+  "runs": [
+    {
+      "version": "0.2.5-dev.6",
+      "passed": true,
+      "requests": 10,
+      "proposalAttempts": 7,
+      "proposalFailures": 6,
+      "adaptationSeconds": 275.787,
+      "phase": "staged",
+      "taskCount": 5,
+      "allTasksPending": true,
+      "membersUnspawned": true,
+      "errors": [
+        "适配不能覆盖通用任务",
+        "invalid arguments: missing required property \"operations[0].layers.general\"",
+        "请一次性提交所有节点的本次任务；不适用的节点填写 adaptationIssue",
+        "请一次性提交所有节点的本次任务；不适用的节点填写 adaptationIssue",
+        "适配不能覆盖通用任务",
+        "适配不能覆盖通用任务"
+      ],
+      "traceSha256": "864a68f077f18add5357a9ff132c6c2413526d70e2dfac4d28fb312448778962",
+      "runtimeCodeSha256": "4f489625d5524a1d39eeaf0fa1fe04f816a831719511765c22b3f25c691d07cc"
+    },
+    {
+      "version": "0.2.5-dev.7",
+      "passed": true,
+      "requests": 5,
+      "proposalAttempts": 3,
+      "proposalFailures": 2,
+      "adaptationSeconds": 89.526,
+      "phase": "staged",
+      "taskCount": 5,
+      "allTasksPending": true,
+      "membersUnspawned": true,
+      "errors": [
+        "invalid arguments: \"operations[0].layers.confirmConfiguration\" is not a declared property (additionalProperties: false); \"operations[1].layers.confirmConfiguration\" is not a declared property (additionalProperties: false); \"operations[2].layers.confirmConfiguration\" is not a declared property (additionalProperties: false); \"operations[3].layers.confirmConfiguration\" is not a declared property (additionalProperties: false); \"operations[4].layers.confirmConfiguration\" is not a declared property (additionalProperties: false)",
+        "请先处理适配问题，并明确清除问题说明"
+      ],
+      "traceSha256": "a422eb4cb2f4a469669377b8dca3c52349a94c378e7081e6af263a92af9172a2",
+      "runtimeCodeSha256": "eb7cc7a4685748475dc08b65911bdf94055446cdf1fcfd32c2e08f329d2849f3"
+    }
+  ],
+  "replay": [
+    {
+      "case": "historical-call-1",
+      "historicalError": "Expected double-quoted property name in JSON at position 1823 (line 1 column 1824)",
+      "currentViolations": [
+        "\"value.operations\" must be an array"
+      ]
+    },
+    {
+      "case": "historical-call-2",
+      "historicalError": "Expected double-quoted property name in JSON at position 1554 (line 1 column 1555)",
+      "currentViolations": [
+        "\"value.operations\" must be an array"
+      ]
+    },
+    {
+      "case": "historical-call-3",
+      "historicalError": null,
+      "currentViolations": [
+        "\"value.operations\" must be an array"
+      ]
+    },
+    {
+      "case": "historical-success-as-native-array",
+      "currentViolations": [],
+      "operationCount": 8
+    },
+    {
+      "case": "layers-encoded-object",
+      "error": "invalid arguments: \"operations[0].layers\" must be an object"
+    },
+    {
+      "case": "layers-array",
+      "error": "invalid arguments: \"operations[0].layers\" must be an object"
+    },
+    {
+      "case": "layers-empty-string",
+      "error": "invalid arguments: \"operations[0].layers\" must be an object"
+    },
+    {
+      "case": "layers-null",
+      "error": "invalid arguments: \"operations[0].layers\" must be an object"
+    },
+    {
+      "case": "native-object-with-six-strings",
+      "currentViolations": []
+    }
+  ]
+}
