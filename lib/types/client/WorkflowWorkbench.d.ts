@@ -1,6 +1,6 @@
 import type { ModelDirectory } from '@deepseek-ai/dsh-client-ui-model-selection/client';
 import type { AgentTeamsTranslate } from './locales.ts';
-declare function Workbench({ sessionId, teamId, archived, waitingCount, openExecution, openConversation, nativeOnly, reviewEntryOnly, embeddedContext, onNativeContext, openContext, modelDirectory, t, entryTarget, onClose }: {
+declare function Workbench({ sessionId, teamId, archived, waitingCount, openExecution, nativeOnly, reviewEntryOnly, embeddedContext, onNativeContext, openContext, modelDirectory, t, entryTarget, onClose }: {
     entryTarget?: {
         taskId: string;
         review?: boolean;
@@ -15,6 +15,7 @@ declare function Workbench({ sessionId, teamId, archived, waitingCount, openExec
     onNativeContext?: (value: boolean) => void;
     openContext?: () => void;
     nativeOnly?: boolean;
+    /** Compatibility prop for older callers; discussions now stay inside Workflow. */
     openConversation?: (id: string) => void | Promise<void>;
     sessionId: string;
     teamId?: string;

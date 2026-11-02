@@ -99,13 +99,6 @@ export function boundDiscussion(team: TeamState, agent: Agent): WorkflowDiscussi
 export function installWorkflowConversations(ctx: Context, config: ToolsConfig,
   materials: (team: TeamState, taskId: string, workspace: string) => { text: string; evidence: string },
 ) {
-  async function groupWithCaptain(team: TeamState, sessionId: SessionId): Promise<void> {
-    try {
-      const registry = (ctx.get?.('workspaceRegistry') ?? ctx.get?.('workspace')) as { list(): { sessionIds: readonly string[]; attachSession?(id: SessionId): Promise<void> }[] } | undefined
-      const owners = registry?.list().filter(workspace => workspace.sessionIds.includes(team.captainSessionId)) ?? []
-      if (owners.length === 1 && owners[0]?.attachSession && !owners[0].sessionIds.includes(sessionId)) await owners[0].attachSession(sessionId)
-    } catch (error) { ctx.logger?.warn?.(`teamflow: could not group discussion with its captain: ${String(error)}`) }
-  }
   async function scoped<T>(agent: Agent | undefined, run: (team: TeamState, discussion: WorkflowDiscussion, workspace: string) => T | Promise<T>): Promise<T> {
     if (!agent) throw new Error('需要独立配置或验收会话')
     const address = discussionAddress(agent, config.stateDir)
@@ -324,7 +317,6 @@ export function installWorkflowConversations(ctx: Context, config: ToolsConfig,
             }
           }
         }
-        await groupWithCaptain(team, discussion.native.sessionId as SessionId)
         return discussion.native.sessionId
       }
       if (key.startsWith('check:') && !checkpointReady(team, team.tasks.find(t => t.id === key.slice(6))!)) throw new Error('上游尚未完成或检查点已结束')
@@ -340,7 +332,8 @@ export function installWorkflowConversations(ctx: Context, config: ToolsConfig,
       }
       await writeTeam(root, team)
       const handle = await ctx.agents.create({ sessionId: discussion.native.sessionId as SessionId,
-        meta: { cwd: captain.session.header.cwd ?? process.cwd() },
+        // Presentation only: not an execution child, and no inherited parent history.
+        meta: { cwd: captain.session.header.cwd ?? process.cwd(), origin: 'subagent' },
         agentOptions: { provider: selection.provider, model: selection.model, ...(selection.reasoningEffort === undefined ? {} : { reasoningEffort: ReasoningEffortId(selection.reasoningEffort) }) },
         setup: (agentCtx) => {
           // Restrict before publishing the session or accepting any prompt.
@@ -363,8 +356,6 @@ export function installWorkflowConversations(ctx: Context, config: ToolsConfig,
         : discussedTask ? taskOpening(team, discussedTask.id, options.message) : member ? memberOpening(team, member.name, options.message) : `${key.startsWith('check:') ? reviewOpening(team, key.slice(6)) + '\n' : ''}这是一个新的独立讨论。讨论对象：${key}。先调用 agent_teams_workflow_context 获取当前状态。${key.startsWith('check:') ? '请整理本轮成果、证据缺口和验收要点，等待用户讨论与判断。' : '请根据团队目标讨论并提出初步团队或流程调整方案，等待用户确认。'}\n已有用户需求（来源材料）：${planningContext}\n${options.message??''}`
       handle.agent.followup(createUserMessage({ content: [{ type: 'text', text: opening }], source: { kind: 'user' } }))
       await ctx.sessions.flush(handle.agent.session)
-      // Group only under the captain's existing, unambiguous workspace.
-      await groupWithCaptain(team, handle.agent.id)
       return handle.agent.id
     },
   }

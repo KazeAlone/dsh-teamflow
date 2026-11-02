@@ -24,6 +24,7 @@ export async function exerciseWorkflow({ baseUrl, cookie, captain, readTeam, rec
     }
     const live = ctx.agents.get(opened.openedSessionId); assert.ok(live); await live.whenIdle();
     assert.equal(live.session.header.parentSession, undefined, 'Discussion must have no execution parent');
+    assert.equal(live.session.header.origin, 'subagent', 'Internal discussion must be hidden by the host session browser');
     const scoped = await post('state', { sessionId: live.id }); assert.equal(scoped.currentDiscussion, key);assert.equal(scoped.activity.captainSessionId,scoped.team.captainSessionId);assert.equal(scoped.activity.teamId,scoped.team.id);
     await post('state', { sessionId: live.id, teamId: 'another-team' }, 409);
     live.followup(createUserMessage({ content: [{ type: 'text', text: '继续核对当前方案，不应用修改。' }], source: { kind: 'user' } }));

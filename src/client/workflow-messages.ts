@@ -1,5 +1,7 @@
 /** Source-message catalog for workflow UI. Never apply to user-authored content. */
 export const workflowEnglish: Record<string, string> = {
+  '在此窗口内讨论团队与流程，修改方案会显示在这里。': 'Discuss the team and workflow in this window; proposals appear here.',
+  '在此窗口内共同检查成果并确认验收决定。': 'Review the results and confirm your decision in this window.',
   '通用草稿已保存，等待生成本次任务': 'General draft saved; instance tasks are still needed',
   '放弃通用草稿': 'Discard general draft',
   '请先完成两阶段生成': 'Complete both generation stages first',

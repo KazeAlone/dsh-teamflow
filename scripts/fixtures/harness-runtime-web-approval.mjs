@@ -178,6 +178,7 @@ export function apply(ctx) {
             assert.ok(!history.some(event => event.type === 'agent-teams/workflow-discussion'), 'Only native host records belong in the session log');
             assert.ok(history.length > 5, 'Native history must survive process restart');
             assert.equal(restored.agent.session.header.parentSession, undefined);
+            assert.equal(restored.agent.session.header.origin, 'subagent', 'Workflow-only classification survives cold restoration');
             assert.equal(ctx.agents.get(saved.captainId), undefined);
             const origin = `http://127.0.0.1:${ctx.webServer.port}`;
             const auth = await fetch(ctx.connection.authenticatedUrl(origin), { redirect: 'manual' });

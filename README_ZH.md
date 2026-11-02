@@ -4,12 +4,14 @@
 
 这是 [yogurtss/dsh-teamflow](https://github.com/yogurtss/dsh-teamflow) 开发分支，基于 [NanmiCoder/dsh-agent-teams](https://github.com/NanmiCoder/dsh-agent-teams) 扩展。让模型先讨论并建立团队，再由你调整成员职责、任务交接和人工验收节点。
 
-**安装本分支请使用本仓库 GitHub 地址或本地构建包。** 新包名为 `@yogurtss/dsh-teamflow`，当前开发版本为 `0.2.5-dev.8`；尚未发布到 npm。原版包 `@nanmicoder/dsh-agent-teams` 与本项目不同。
+**安装本分支请使用本仓库 GitHub 地址或本地构建包。** 新包名为 `@yogurtss/dsh-teamflow`，当前开发版本为 `0.2.5-dev.9`；尚未发布到 npm。原版包 `@nanmicoder/dsh-agent-teams` 与本项目不同。
 
 新对话可直接点击 **Teamflow → 流程模板库 Gallery**，不需要输入命令。也可使用 `/teamflow` 开始讨论；仅注册 `/teamflow` 和 `/teamflow-<profile>`，旧 `/agent-teams` 及其 profile 命令已移除。选择预设团队角色也可使用 `/teamflow --profile <名称> <目标>`。为读取原团队记录，`.agent-teams/` 数据目录、内部 `agent_teams_*` 工具和会话事件协议保持不变。历史报告中的旧名称及截图是当时的实测记录。
 
 
-## 0.2.5-dev.8 · 两阶段任务生成
+## 0.2.5-dev.9 · 讨论留在 Workflow 内
+
+流程、任务、成员配置和验收讨论统一在 Workflow 窗口内进行，不再与主对话混排在 Session 列表。已有讨论历史可继续在 Workflow 中查看和续聊，不删除或归档会话。更新开发版本并刷新或重启客户端后生效。见[Workflow 内讨论说明](./release-notes/v0.2.5-dev.9.md)。
 
 新建流程先生成成员、依赖与通用要求，再把通用要求和当前目标送入第二阶段，生成可独立执行的完整本次任务。套用模板直接进入第二阶段，无需重复生成通用层。两阶段之间不要求用户确认，最后统一预览确认；失败后可以恢复通用草稿。第二阶段只输出任务 ID 和三个文本字段，通用层与配置状态由服务端保留。见[两阶段生成说明与验证](./release-notes/v0.2.5-dev.8.md)。
 

@@ -60,7 +60,7 @@ function ReviewMaterials({ text }: { text: string }) {
   } catch { return <pre>{text}</pre> }
 }
 
-function Workbench({ sessionId, teamId, archived = false, waitingCount = 0, openExecution, openConversation, nativeOnly = false, reviewEntryOnly = false, embeddedContext = false, onNativeContext, openContext, modelDirectory, t, entryTarget, onClose }: {
+function Workbench({ sessionId, teamId, archived = false, waitingCount = 0, openExecution, nativeOnly = false, reviewEntryOnly = false, embeddedContext = false, onNativeContext, openContext, modelDirectory, t, entryTarget, onClose }: {
   entryTarget?: { taskId: string; review?: boolean; rerun?: boolean }
   onClose?: () => void
   archived?: boolean
@@ -71,6 +71,7 @@ function Workbench({ sessionId, teamId, archived = false, waitingCount = 0, open
   onNativeContext?: (value: boolean) => void
   openContext?: () => void
   nativeOnly?: boolean
+  /** Compatibility prop for older callers; discussions now stay inside Workflow. */
   openConversation?: (id: string) => void | Promise<void>
   sessionId: string; teamId?: string; waitingCount?: number; openExecution?: (memberId: string, parentId?: string) => void | Promise<void>
 }) {
@@ -245,17 +246,6 @@ function Workbench({ sessionId, teamId, archived = false, waitingCount = 0, open
       return result
     } catch (err) { if (mounted.current) { setError(err instanceof Error ? err.message : String(err)); if (saving) setSaveState('error') }; return undefined }
     finally { if (mounted.current) { setWorking(false) } }
-  }
-  async function openDiscussion(key = discussion, targetId = activeId, fresh = false, message?: string): Promise<void> {
-    selectDiscussion(key)
-    const revision = viewRef.current.revision
-    if (!openConversation) { setError(l("请在 DSH 中打开原生对话；开发预览不连接模型。")); return }
-    const result = await perform('open_discussion', { discussion: key, teamId: targetId, fresh, message })
-    if (result?.openedSessionId && viewRef.current.revision === revision) {
-      if (result.openedSessionId === team?.captainSessionId || !result.openedSessionId.startsWith('session-at-discussion-')) { setError(l("宿主未返回独立讨论会话，已取消跳转")); return }
-      try { await openConversation(result.openedSessionId); closeWorkbench(); openContext?.() }
-      catch (error) { setError(error instanceof Error ? error.message : String(error)) }
-    }
   }
   async function createFlow(): Promise<void> {
     const created = await perform('create', { name: name ?? l('新团队'), description: goal })
@@ -678,10 +668,9 @@ function Workbench({ sessionId, teamId, archived = false, waitingCount = 0, open
         {!editor && !selectedEdge && !activeTask && <aside className={css.discussion}><header><img src={reviewTask ? REVIEW_ART : member ? memberArtUrl(member.name, member.role ?? '') : LEAD_ART} alt="" /><div><h3>{reviewTask ? l("验收 · {0}", reviewTask.subject) : discussionTask ? l("任务讨论 · {0}", discussionTask.subject) : member ? l("成员职责 · {0}", member.name) : l("流程修改")}</h3>
           <small>{reviewTask ? l("一起检查成果，由你决定是否通过") : l("讨论不影响执行，修改确认后生效")}</small></div></header>
           <div className={css.messages}>
-            <p className={css.hint}>{reviewTask ? l("在原生验收对话中共同检查成果，回到这里确认验收决定。") : discussionTask ? l("基于已保存的任务要求、负责人、上下游和提交结果讨论；未保存草稿不会发送给 AI。") : member ? l("在这里与独立配置顾问讨论；队长对话保持独立。") : l("在 DSH 原生对话中讨论团队与流程，修改方案会显示在这里。")}</p>
+            <p className={css.hint}>{reviewTask ? l("在此窗口内共同检查成果并确认验收决定。") : discussionTask ? l("基于已保存的任务要求、负责人、上下游和提交结果讨论；未保存草稿不会发送给 AI。") : member ? l("在这里与独立配置顾问讨论；队长对话保持独立。") : l("在此窗口内讨论团队与流程，修改方案会显示在这里。")}</p>
             {discussionTask && <div><button onClick={() => locateTask(discussionTask.id)}>{l("返回任务属性")}</button><button disabled={working || archiveView} onClick={() => void startEmbedded('graph')}>{l("讨论整体流程与拆分")}</button></div>}
             {archiveView ? <p className={css.hint}>{l("恢复并编辑流程后可继续讨论。")}</p> : embeddedDiscussion === discussion && activeId ? <EmbeddedDiscussion key={`${activeId}:${discussion}:${conversation?.native?.sessionId}`} sessionId={sessionId} teamId={activeId} discussion={discussion} /> : <button className={css.primary} disabled={working} onClick={() => member ? prepareDiscussion(member.name) : void startEmbedded(discussion)}>{l(conversation?.native ? "继续在此处讨论" : "在此处开始讨论")}</button>}
-            {embeddedDiscussion === discussion && conversation?.native && openConversation && <button disabled={working} onClick={() => void openDiscussion(discussion)}>{l("打开完整 DSH 对话 ↗")}</button>}
             <details open={archiveView || !proposal && selection.type === 'member'}><summary>{l("已保存资料（不含待确认修改）")}</summary><WorkflowContext team={team} discussion={discussion} onSelect={key => key.startsWith('member:') ? edit('member', key.slice(7)) : selectDiscussion(key)} openExecution={openExecution} /></details>
             {conversation?.materials && <details open><summary>{l("本轮验收材料与证据")}</summary><ReviewMaterials text={conversation.materials} /></details>}
             {data.busy.includes(discussion) && <p role="status">{l("原生对话正在整理方案…")}</p>}

@@ -25,6 +25,7 @@ import { TeamChatEntry, TeamTurnCard } from './TeamChatEntry.tsx'
 import { createWorkspaceState } from './workspace-state.ts'
 import { AgentTeamsCard, type AgentTeamsCardInjected } from './AgentTeamsCard.tsx'
 import { agentTeamsCardDefinition } from './agent-teams-card-definition.ts'
+import { installDiscussionSessionPresentation } from './discussion-session-presentation.ts'
 import {
   AGENT_TEAMS_LOCALE_NAMESPACE, en, zh, type AgentTeamsLocaleKey,
 } from './locales.ts'
@@ -57,6 +58,9 @@ function HiddenAgentTeamsCommand(): null {
  * monitor via a window event — the recovery path for an old session.
  */
 export function apply(ctx: ClientContext): void {
+  ctx.effect(() => installDiscussionSessionPresentation(ctx.sessions.list), 'teamflow: workflow-only discussions')
+  // Refresh existing clients as well as initial/cold catalogs; no session opens.
+  void ctx.sessions.refresh?.().catch(error => console.warn(`teamflow: discussion catalog refresh failed: ${String(error)}`))
   const bridge = createWorkspaceBridge()
   const state = createWorkspaceState()
   ctx.effect(

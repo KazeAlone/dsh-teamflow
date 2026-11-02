@@ -622,7 +622,8 @@ test('fresh member discussion creates an independent session seeded with member 
   const runtime = installWorkflowConversations(ctx, { stateDir: '.agent-teams', maxMembers: 8 }, workflowMaterials)
   const captain = { id: 'captain-id', options: { provider: 'fake', model: 'fake' }, session: { header: { cwd: root }, requestHeader: () => ({ config: {} }) } }
   const id = await runtime.open(captain, source, 'member:worker', join(root, '.agent-teams'), { fresh: true, message: 'Focus on requirement risks' })
-  assert.deepEqual(grouped, [id])
+  assert.deepEqual(grouped, [])
+  assert.equal(spec.meta.origin, 'subagent')
   assert.notEqual(id, captain.id); assert.notEqual(id, 'old-discussion')
   assert.equal(spec.resumeSessionId, undefined); assert.equal(spec.parentSessionId, undefined)
   assert.match(prompts[0].content[0].text, /Review requirements/)
@@ -636,7 +637,7 @@ test('fresh member discussion creates an independent session seeded with member 
   assert.ok(Object.entries(source.workflow.discussions).some(([key, value]) => key.startsWith('archive:') && value.native.sessionId === 'old-discussion'))
   const secondId = await runtime.open(captain, source, 'member:worker', join(root, '.agent-teams'), { fresh: true })
   assert.notEqual(secondId, id)
-  assert.deepEqual(grouped, [id, secondId])
+  assert.deepEqual(grouped, [])
   assert.match(prompts[1].content[0].text, /询问我希望如何调整/)
   assert.ok(Object.entries(source.workflow.discussions).some(([key, value]) => key.startsWith('archive:') && value.native.sessionId === id))
 })
