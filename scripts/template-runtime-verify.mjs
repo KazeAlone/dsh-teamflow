@@ -42,3 +42,4 @@ assert.ok(trace.some(row=>row.event==='builtin-english-passed' && row.tasks===9)
 
 assert.ok(trace.some(row=>row.event==='rerun-path-passed' && row.humanGatePreserved && row.automaticContinuation), 'Packaged rerun path must continue after human approval');
 assert.ok(trace.some(row=>row.event==='captain-single-description-passed' && row.createCalls===1 && row.configuredTasks===2 && row.approvalStatus===200), 'One create call must produce runnable descriptions without specialization calls');
+assert.ok(trace.some(row=>row.event==='template-captain-visible' && row.ordinary && row.engaged), 'Template application must engage its ordinary main conversation');

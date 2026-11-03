@@ -157,6 +157,14 @@ export async function exerciseWorkflow({ baseUrl, cookie, captain, readTeam, rec
   const appliedCaptain=await ctx.agents.create({sessionId:'session-template-'+Date.now(),meta:{cwd:process.cwd()},agentOptions:{provider:'runtime-lab',model:'manual-fixture'}});
   ctx.effect(()=>()=>appliedCaptain.dispose());await appliedCaptain.agent.whenIdle();activeSession=appliedCaptain.agent.id;activeTeam='';
   result=await post('template_apply',{templateId:saved.template.id,version:saved.template.version,name:'Operator B',description:'Implement operator B'});activeTeam=result.team.id;
+  await appliedCaptain.agent.whenIdle();
+  const captainEvents=appliedCaptain.agent.session.ownEvents();
+  assert.ok(captainEvents.some(e=>e.type==='turn/start'),'Template application must engage the blank main session');
+  assert.ok(captainEvents.some(e=>e.type==='user/message'&&e.data.source.kind==='user'&&e.data.content.some(b=>b.type==='text'&&b.text.includes('Implement operator B'))));
+  assert.notEqual(appliedCaptain.agent.session.header.origin,'subagent','The captain must remain an ordinary conversation');
+  await ctx.sessions.flush(appliedCaptain.agent.session);
+  writeFileSync('template-captain-resume.json',JSON.stringify({sessionId:appliedCaptain.agent.id,teamId:activeTeam}));
+  record({event:'template-captain-visible',sessionId:appliedCaptain.agent.id,ordinary:true,engaged:true});
   assert.ok(result.team.tasks.every(t=>t.workflowConfigPending));assert.ok(result.team.members.every(m=>!m.id));
   await post('start',{},409);
   result=await nativeDiscussion('adapt');

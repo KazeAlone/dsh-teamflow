@@ -3,6 +3,7 @@ import { localizeBuiltinTemplate } from './builtin-template-locales.ts'
 /** Human-only workflow controls and native conversation navigation. */
 import type { Context } from '@deepseek-ai/cordis'
 import type { Agent } from '@deepseek-ai/dsh-agent'
+import { createUserMessage } from '@deepseek-ai/dsh-llm'
 import type { SessionId } from '@deepseek-ai/dsh-session'
 import { createHash, randomUUID } from 'node:crypto'
 import { join } from 'node:path'
@@ -106,6 +107,14 @@ export function installWorkflowWorkbench(ctx: Context, config: ToolsConfig, runt
             const selection=await resolveMemberLlmSelection(ctx,captain,{})
             for(const member of copy.members){member.provider=selection.provider;member.model=selection.model;member.reasoningEffort=selection.reasoningEffort}
             await createTeamDir(root,copy)
+            // A blank captain is omitted from the host Session list until its
+            // first real turn. Record the user's template action through the
+            // normal Agent input path, so visibility and persistence survive reload.
+            captain.followup(createUserMessage({ source: { kind: 'user' }, content: [{ type: 'text', text:
+              body['language']==='en'
+                ? `I applied template "${template.name}" v${template.version} to create "${name}".\nTask: ${copy.description}\nThe workflow already exists (team ID: ${teamId}). This is its main conversation. Task refinement continues in the Workflow discussion. Briefly acknowledge and wait for my confirmation there; do not create another team, edit the plan, or start execution.`
+                : `我已使用模板「${template.name}」v${template.version} 创建「${name}」。\n本次需求：${copy.description}\n流程已创建（团队 ID：${teamId}），这里是该流程的主对话。任务细化将在 Workflow 讨论中进行。请简短确认，等待我在 Workflow 中确认方案；不要重复创建团队、修改计划或启动执行。`
+            }] }))
           }else await createTeamDir(root, { name, id: teamId, captainSessionId: captain.id, description: typeof body['description'] === 'string' ? body['description'] : '',
             phase: 'staged', members: [], tasks: [], taskSeq: 0, createdAt: Date.now(),
             workflow: { positions: {}, discussions: {}, history: [] } })

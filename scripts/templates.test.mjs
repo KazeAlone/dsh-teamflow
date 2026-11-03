@@ -67,13 +67,22 @@ test('authenticated workflow handler applies templates once and leaves the sourc
   const workspace=await mkdtemp(join(tmpdir(),'teamflow-api-')),library=join(workspace,'library'),state=join(workspace,'.agent-teams');await mkdir(state);t.after(()=>rm(workspace,{recursive:true,force:true}))
   const template=await saveTemplate(library,definition()),source=team();source.id='source';source.captainSessionId='another-captain';await createTeamDir(state,source)
   const before=await readFile(join(state,'source','team.json'),'utf8')
-  const captain={id:'captain',options:{provider:'fixture',model:'test'},session:{header:{cwd:workspace},requestHeader:()=>undefined,ownEvents:()=>[]}}
+  const messages=[]
+  const captain={id:'captain',followup:message=>messages.push(message),options:{provider:'fixture',model:'test'},session:{header:{cwd:workspace},requestHeader:()=>undefined,ownEvents:()=>[]}}
   const ctx={agents:{get:id=>id==='captain'?captain:undefined},llm:{resolveCallConfig:async v=>v},effect:fn=>fn()};let route
   installWorkflowWorkbench(ctx,{stateDir:'.agent-teams',templateDirectory:library,maxMembers:8},{},{register:r=>{route=r;return()=>{}}})
   async function call(action,fields={}){const req=Readable.from([JSON.stringify({sessionId:'captain',action,...fields})]);req.method='POST';let status,value;await route.handler(req,{writeHead:s=>{status=s},end:v=>{value=JSON.parse(v)}});return {status,...value}}
   assert.equal((await call('template_list')).templates.length,4)
+  assert.equal(messages.length,0,'Browsing must leave the captain blank')
+  assert.equal((await call('template_apply',{templateId:template.id,version:999,name:'Invalid',description:'B'})).status,409)
+  assert.equal(messages.length,0,'Rejected template use must not start a conversation')
   const result=await call('template_apply',{templateId:template.id,version:1,name:'B',description:'实现 B'});assert.equal(result.status,200,result.error);assert.equal(result.activity.teamId,result.team.id);assert.equal(result.activity.captainSessionId,'captain');assert.equal(result.activity.phase,'staged');assert.equal(result.team.phase,'staged');assert.ok(result.team.tasks.every(t=>t.workflowConfigPending));assert.equal(result.team.members[0].model,'test')
   assert.equal((await call('template_apply',{templateId:template.id,version:1,name:'duplicate',description:'B'})).status,409)
+  assert.equal(messages.length,1,'Successful application starts exactly one captain turn; duplicate requests do not')
+  assert.equal(messages[0].source.kind,'user')
+  assert.ok(messages[0].content[0].text.includes(template.name))
+  assert.ok(messages[0].content[0].text.includes('实现 B'))
+  assert.ok(messages[0].content[0].text.includes(result.team.id))
   assert.equal(await readFile(join(state,'source','team.json'),'utf8'),before);assert.ok(await readTeam(state,result.team.id))
   const renamed=structuredClone(result.team);renamed.description='new target';assert.notEqual(workflowFingerprint(renamed),result.base)
 

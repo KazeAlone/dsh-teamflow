@@ -175,6 +175,12 @@ export function apply(ctx) {
     void (async () => {
         await ctx.get('loader').await();
         if (process.env.LAB_WORKFLOW_COLD === '1') {
+            const templateOwner=JSON.parse(readFileSync('template-captain-resume.json','utf8'));
+            const templateMain=await ctx.agents.resume({resumeSessionId:templateOwner.sessionId,agentOptions:{provider:'runtime-lab',model:'manual-fixture'}});
+            ctx.effect(()=>()=>templateMain.dispose());await templateMain.agent.whenIdle();
+            assert.notEqual(templateMain.agent.session.header.origin,'subagent');
+            assert.ok(templateMain.agent.session.ownEvents().some(e=>e.type==='turn/start'),'Template main conversation remains engaged after restart');
+            assert.ok(templateMain.agent.session.ownEvents().some(e=>e.type==='user/message'&&e.data.content.some(b=>b.type==='text'&&b.text.includes(templateOwner.teamId))));
             const saved = JSON.parse(readFileSync('workflow-resume.json', 'utf8'));
             const restored = await ctx.agents.resume({ resumeSessionId: saved.nativeId, agentOptions: { provider: 'runtime-lab', model: 'manual-fixture' } });
             ctx.effect(() => () => restored.dispose()); await restored.agent.whenIdle();
