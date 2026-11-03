@@ -30,6 +30,16 @@ function string(value: unknown, name: string): string {
   if (typeof value !== 'string' || !value.trim() || value.length > 16000) throw new Error(`${name} 不能为空或过长`)
   return value.trim()
 }
+/** Use the host's durable rename API; do not depend on auxiliary LLM naming. */
+function nameTemplateCaptain(ctx: Context, captain: Agent, name: string, creating = false): void {
+  const titles = ctx.get?.('sessionTitle') as {
+    get(session: Agent['session']): { title: string; source: { kind: string } } | undefined
+    rename(session: Agent['session'], title: string): unknown
+  } | undefined
+  if (!titles?.get || !titles.rename) return
+  const current = titles.get(captain.session)
+  if (!current || creating && current.source.kind !== 'user') titles.rename(captain.session, name)
+}
 export function workflowMaterials(team: TeamState, taskId: string, workspace: string): { text: string; evidence: string } {
   const gate = team.tasks.find(t => t.id === taskId && t.checkpoint)
   if (!gate) throw new Error('检查点不存在')
@@ -107,6 +117,7 @@ export function installWorkflowWorkbench(ctx: Context, config: ToolsConfig, runt
             const selection=await resolveMemberLlmSelection(ctx,captain,{})
             for(const member of copy.members){member.provider=selection.provider;member.model=selection.model;member.reasoningEffort=selection.reasoningEffort}
             await createTeamDir(root,copy)
+            nameTemplateCaptain(ctx, captain, name, true)
             // A blank captain is omitted from the host Session list until its
             // first real turn. Record the user's template action through the
             // normal Agent input path, so visibility and persistence survive reload.
@@ -149,6 +160,7 @@ export function installWorkflowWorkbench(ctx: Context, config: ToolsConfig, runt
       const load = async (): Promise<TeamState> => {
         const team = await readTeam(root, teamId)
         if (!team || (address && !boundDiscussion(team, caller)) || !(await sessionLeadsTeamAsync(ctx, team, captain.id))) throw new Error('当前会话不能管理此团队')
+        if (team.workflow?.templateSource) nameTemplateCaptain(ctx, captain, team.name)
         return team
       }
       const currentDiscussion = address ? boundDiscussion(await load(), caller)?.key : undefined

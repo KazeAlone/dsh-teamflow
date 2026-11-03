@@ -159,6 +159,8 @@ export async function exerciseWorkflow({ baseUrl, cookie, captain, readTeam, rec
   result=await post('template_apply',{templateId:saved.template.id,version:saved.template.version,name:'Operator B',description:'Implement operator B'});activeTeam=result.team.id;
   await appliedCaptain.agent.whenIdle();
   const captainEvents=appliedCaptain.agent.session.ownEvents();
+  assert.equal(ctx.get('sessionTitle').get(appliedCaptain.agent.session)?.title,'Operator B');
+  assert.equal(ctx.get('sessionTitle').get(appliedCaptain.agent.session)?.source.kind,'user');
   assert.ok(captainEvents.some(e=>e.type==='turn/start'),'Template application must engage the blank main session');
   assert.ok(captainEvents.some(e=>e.type==='user/message'&&e.data.source.kind==='user'&&e.data.content.some(b=>b.type==='text'&&b.text.includes('Implement operator B'))));
   assert.notEqual(appliedCaptain.agent.session.header.origin,'subagent','The captain must remain an ordinary conversation');

@@ -178,6 +178,7 @@ export function apply(ctx) {
             const templateOwner=JSON.parse(readFileSync('template-captain-resume.json','utf8'));
             const templateMain=await ctx.agents.resume({resumeSessionId:templateOwner.sessionId,agentOptions:{provider:'runtime-lab',model:'manual-fixture'}});
             ctx.effect(()=>()=>templateMain.dispose());await templateMain.agent.whenIdle();
+            assert.equal(ctx.get('sessionTitle').get(templateMain.agent.session)?.title,'Operator B','Template title survives cold restoration');
             assert.notEqual(templateMain.agent.session.header.origin,'subagent');
             assert.ok(templateMain.agent.session.ownEvents().some(e=>e.type==='turn/start'),'Template main conversation remains engaged after restart');
             assert.ok(templateMain.agent.session.ownEvents().some(e=>e.type==='user/message'&&e.data.content.some(b=>b.type==='text'&&b.text.includes(templateOwner.teamId))));

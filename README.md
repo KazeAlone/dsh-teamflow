@@ -4,7 +4,7 @@ English · [简体中文](./README_ZH.md)
 
 This is the [yogurtss/dsh-teamflow](https://github.com/yogurtss/dsh-teamflow) development fork of [NanmiCoder/dsh-agent-teams](https://github.com/NanmiCoder/dsh-agent-teams). Discuss a goal, form an initial team, then adjust member instructions, task handoffs and human checkpoints.
 
-**Install this fork from GitHub or a local build.** Its new package name is `@yogurtss/dsh-teamflow`; the development version is `0.2.5-dev.13`. It is not published to npm. The upstream package is `@nanmicoder/dsh-agent-teams`.
+**Install this fork from GitHub or a local build.** Its new package name is `@yogurtss/dsh-teamflow`; the development version is `0.2.5-dev.14`. It is not published to npm. The upstream package is `@nanmicoder/dsh-agent-teams`.
 
 Click **团队与流程** at the top of the TeamFlow activity panel or team page to open the workbench. The button shows pending changes and human reviews; completed and archived teams also open the full canvas, including task requirements, results and verification records.
 
@@ -13,9 +13,9 @@ Human checkpoints require opening their evidence and clicking **通过验收** o
 Use `/teamflow` to start. Only `/teamflow` and `/teamflow-<profile>` commands are registered; the old `/agent-teams` command and its profile aliases have been removed. Use `/teamflow --profile <name> <goal>` to select a profile explicitly. The `.agent-teams/` data directory, internal `agent_teams_*` tools and session event protocol remain unchanged to preserve existing records. Historical reports retain the names and screenshots captured at the time.
 
 
-## 0.2.5-dev.13 · Template workflows keep a main conversation
+## 0.2.5-dev.14 · Template workflows keep a main conversation
 
-Applying a template now starts a brief acknowledgement in its main conversation so it appears in the Session list and survives restart. Task refinement continues inside Workflow; internal discussions remain hidden from that list. See [changes and validation](./release-notes/v0.2.5-dev.13.md).
+Applying a template names its main conversation after the workflow and keeps it in the Session list across restarts. Opening an older untitled template workflow repairs its title while preserving existing custom titles. Task refinement continues inside Workflow. See [changes and validation](./release-notes/v0.2.5-dev.14.md).
 
 ## Discussions stay inside Workflow
 
