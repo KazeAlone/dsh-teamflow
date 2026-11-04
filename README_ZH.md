@@ -4,12 +4,16 @@
 
 这是 [yogurtss/dsh-teamflow](https://github.com/yogurtss/dsh-teamflow) 开发分支，基于 [NanmiCoder/dsh-agent-teams](https://github.com/NanmiCoder/dsh-agent-teams) 扩展。让模型先讨论并建立团队，再由你调整成员职责、任务交接和人工验收节点。
 
-**安装本分支请使用本仓库 GitHub 地址或本地构建包。** 新包名为 `@yogurtss/dsh-teamflow`，当前 Git 正式版为 `0.2.5`；尚未发布到 npm。原版包 `@nanmicoder/dsh-agent-teams` 与本项目不同。
+**安装本分支请使用本仓库 GitHub 地址或本地构建包。** 新包名为 `@yogurtss/dsh-teamflow`，当前开发版为 `0.2.6-dev.1`；尚未发布到 npm。原版包 `@nanmicoder/dsh-agent-teams` 与本项目不同。
 
 新对话可直接点击 **Teamflow → 流程模板库 Gallery**，不需要输入命令。也可使用 `/teamflow` 开始讨论；仅注册 `/teamflow` 和 `/teamflow-<profile>`，旧 `/agent-teams` 及其 profile 命令已移除。选择预设团队角色也可使用 `/teamflow --profile <名称> <目标>`。为读取原团队记录，`.agent-teams/` 数据目录、内部 `agent_teams_*` 工具和会话事件协议保持不变。历史报告中的旧名称及截图是当时的实测记录。
 
 
-## 0.2.5 · 套用模板后保留主对话入口
+## 画布与任务审阅
+
+点击对话中的蓝点直接打开流程画布。选择节点即可阅读完整任务要求，标题旁可进入编辑。模板生成的任务可逐项切换、修改，最后统一确认。安装此开发版请用 `github:yogurtss/dsh-teamflow#dev`。
+
+## 套用模板后保留主对话入口
 
 套用模板后，主对话直接使用流程名称，并在 Session 列表及重启后保留。已有未命名的模板主对话会在打开 Workflow 时补上名称，保留用户手动设置的标题。任务细化仍在 Workflow 内进行。见[更新与验证说明](./release-notes/v0.2.5-dev.14.md)。
 
@@ -170,7 +174,7 @@ dsh plugin --profile web remove @yogurtss/dsh-teamflow
 
 入口位置及真实组件截图见 [活动小圆点与紧凑面板恢复](./docs/activity-panel-restored-2026-10-28/README.md)。
 
-点击当前聊天右侧的 **活动小圆点**，打开紧凑的 **TeamFlow 活动** 面板；回复下方团队卡片的 **活动面板** 按钮也打开同一面板，包括历史团队。支持原生工作区标签页的宿主同样保留这一入口。
+点击当前聊天右侧的 **活动小圆点** 即可进入当前流程画布。在画布上点击 **团队活动与历史** 可查看其他记录和团队操作。回复下方团队卡片中的 **活动面板** 按钮仍可直接打开活动面板。
 
 面板展示成员分工、任务依赖和执行进度，支持浮动、贴边、调整大小和收起为小圆点。收起不会停止团队。普通团队页面不默认展开「查看对象」讨论资料，独立讨论中仍可查看相关上下文。人工审核标识、运行中动画、任务 AI 讨论以及修改并重跑功能继续保留。
 

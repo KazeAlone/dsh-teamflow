@@ -2,9 +2,11 @@ import { readFileSync } from 'node:fs'
 import { pathToFileURL } from 'node:url'
 import { policy, validatePackageCompatibility } from './compatibility.mjs'
 
+export const pluginVersionPattern = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-(alpha|beta|rc|dev)\.(0|[1-9]\d*))?$/
+
 // Keep prereleases away from npm's default channel, including manual publishes.
 export function releaseMetadata(pkg, support = policy, workspace) {
-  const match = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-(alpha|beta|rc|dev)\.(0|[1-9]\d*))?$/.exec(pkg.version)
+  const match = pluginVersionPattern.exec(pkg.version)
   if (!match || match[0] !== pkg.version) throw new Error(`Unsupported release version: ${pkg.version}`)
   validatePackageCompatibility(pkg, support, workspace)
   const distTag = match[4] ? support.previewTag : 'latest'

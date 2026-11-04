@@ -1,5 +1,6 @@
 /** Read-only release visibility. Registry discovery never grants compatibility. */
 import { pathToFileURL } from 'node:url'
+import { pluginVersionPattern } from './release-metadata.mjs'
 import { policy, requiredHostPeers, validatePolicy } from './compatibility.mjs'
 
 const exactVersion = value => typeof value === 'string' && /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-(?:alpha|beta|rc)\.(0|[1-9]\d*))?$/.test(value) && value.trim() === value
@@ -8,7 +9,7 @@ export function inspectUpgradeStatus({ hostTags, pluginManifest }, support = pol
   const supported = validatePolicy(support)
   if (!hostTags || !exactVersion(hostTags.latest)
       || !exactVersion(hostTags.next)) throw new Error('Registry must return exact latest/next host identities')
-  if (pluginManifest?.name !== '@yogurtss/dsh-teamflow' || !exactVersion(pluginManifest.version)) throw new Error('Registry plugin identity mismatch')
+  if (pluginManifest?.name !== '@yogurtss/dsh-teamflow' || typeof pluginManifest.version !== 'string' || pluginVersionPattern.exec(pluginManifest.version)?.[0] !== pluginManifest.version) throw new Error('Registry plugin identity mismatch')
   const channels = Object.fromEntries(['latest', 'next'].filter(tag => hostTags[tag]).map(tag => [tag, hostTags[tag]]))
   const unverifiedChannels = Object.entries(channels).filter(([, version]) => !supported.includes(version)).map(([channel, version]) => ({ channel, version }))
   // This project publishes exact enumerations. An unfamiliar/wide declaration

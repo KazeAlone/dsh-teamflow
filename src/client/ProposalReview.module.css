@@ -1,6 +1,6 @@
-.review { font-size: 12px; line-height: 1.65; container-type: inline-size; }
+.review { overflow-wrap: anywhere; font-size: 12px; line-height: 1.65; container-type: inline-size; }
 .review header p { color: var(--wb-muted); margin: 6px 0 10px; }
-.actions { display: flex; flex-wrap: wrap; gap: 6px; position: sticky; top: 0; z-index: 1; padding: 6px 0; background: var(--wb-bg); }
+.actions { display: flex; flex-wrap: wrap; gap: 6px; padding: 6px 0; background: var(--wb-bg); }
 .actions button { font: inherit; color: inherit; background: var(--wb-bg); border: 1px solid var(--wb-border); border-radius: 6px; padding: 5px 9px; cursor: pointer; }
 .actions .apply { color: var(--wb-accent); border-color: var(--wb-accent); font-weight: 600; }
 .actions button:disabled { opacity: .5; cursor: not-allowed; }
@@ -28,3 +28,9 @@
 .operation[data-included='false']>.field { opacity: .55; }
 .review [role='alert'] { color: var(--wb-error); }
 @container(min-width:400px) { .pair { grid-template-columns: minmax(0,1fr) minmax(0,1fr); } }
+
+.itemPicker { display: grid; gap: 4px; margin-block: 10px; }
+.itemPicker select { width: 100%; min-width: 0; font: inherit; }
+.operation h4 { margin: 0; padding: 9px; background: var(--wb-base); }
+.review[data-generated='true'] .pair { grid-template-columns: minmax(0,1fr); }
+.review[data-generated='true'] textarea { field-sizing: content; }

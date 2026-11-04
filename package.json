@@ -1,6 +1,6 @@
 {
   "name": "@yogurtss/dsh-teamflow",
-  "version": "0.2.5",
+  "version": "0.2.6-dev.1",
   "description": "DSH TeamFlow: editable agent workflows with native discussions and human approval checkpoints",
   "type": "module",
   "main": "lib/index.js",
@@ -61,7 +61,7 @@
   },
   "publishConfig": {
     "access": "public",
-    "tag": "latest",
+    "tag": "next",
     "registry": "https://registry.npmjs.org/"
   },
   "dsh": {

@@ -10,7 +10,7 @@ import { WorkflowLocale } from './workflow-i18n.tsx'
  * space; narrow viewports keep a simple inset overlay. It
  * polls the host `/plugins/dsh-agent-teams/state` route for
  * server-side snapshots (durable files + live subagent activity), with a
- * collapsed badge that auto-expands once when activity appears. Archived
+ * badge that opens the workflow canvas on demand. Archived
  * teams stay available for the owning conversation after live work ends.
  *
  * The floater mounts in ui-layout's additive `shell.overlay`; it is not a
@@ -42,7 +42,6 @@ import type { ObservableSnapshot } from '@deepseek-ai/dsh-client-store'
 import type { SessionListState } from '@deepseek-ai/dsh-api-session-controller/client'
 import {
   activityPanelExpandedForSession,
-  activityPanelShouldAutoExpand,
   compactDagLayout,
   COMPACT_DAG_NODE_WIDTH,
   COMPACT_DAG_NODE_HEIGHT,
@@ -92,12 +91,6 @@ import css from './ActivityPanel.module.css'
 
 /** Grace before the panel collapses once no team remains. */
 const AUTOCLOSE_GRACE_MS = 2000
-/**
- * Page-settle window after mount: activity restored on page load only shows
- * the collapsed badge, so the panel never yanks the conversation column
- * right after load. New activity after this window auto-expands as usual.
- */
-const AUTO_OPEN_SETTLE_MS = 4000
 /** Root marker shared with the panel CSS while the shell overlay is expanded. */
 const PANEL_OPEN_ATTRIBUTE = 'data-agent-teams-panel-open'
 /** Shared width concession consumed by the conversation root CSS. */
@@ -926,7 +919,7 @@ export function ActivityPanel({ sessionsList, modelDirectories, openMember, t, c
   }
   const [open, setOpen] = useState(false)
   const [openOwner, setOpenOwner] = useState<SessionId | undefined>()
-  const [autoOpened, setAutoOpened] = useState(false)
+  const [canvasEntry, setCanvasEntry] = useState<{ owner: SessionId; teamId: string; archived: boolean }>()
   const [wasActive, setWasActive] = useState(false)
   const [historic, setHistoric] = useState<ReadonlyMap<string, { data: AgentTeamsCardData; owner: string }>>(new Map())
   const [layout, setLayout] = useState<PanelLayout>(initialPanelLayout)
@@ -953,11 +946,6 @@ export function ActivityPanel({ sessionsList, modelDirectories, openMember, t, c
     }).catch(()=>{ /* Keep the selected-session boundary when discovery is unavailable. */ })
     return()=>{active=false;controller.abort()}
   },[selectedSession])
-  const autoOpenTrackerRef = useRef<{
-    sessionId: SessionId | undefined
-    restoreComplete: boolean
-    liveTeamIds: ReadonlySet<string>
-  }>({ sessionId: current, restoreComplete: false, liveTeamIds: new Set() })
   const monitorTargets = useSyncExternalStore(
     subscribeActivityMonitorTargets,
     getActivityMonitorTargetsSnapshot,
@@ -981,7 +969,6 @@ export function ActivityPanel({ sessionsList, modelDirectories, openMember, t, c
   )
   const currentRef = useRef(current)
   useEffect(() => { currentRef.current = current }, [current])
-  const mountedAtRef = useRef(performance.now())
   const expanded = conversationVisible && activityPanelExpandedForSession(open, openOwner, current)
   const geometry = useMemo(() => resolvePanelGeometry(layout, bounds), [layout, bounds])
   const compact = compactPanelForBounds(bounds)
@@ -1041,18 +1028,11 @@ export function ActivityPanel({ sessionsList, modelDirectories, openMember, t, c
   // removes the old panel immediately instead of waiting for the no-team
   // autoclose grace period on the destination page.
   useLayoutEffect(() => {
-    const tracker = autoOpenTrackerRef.current
-    if (tracker.sessionId !== current) {
-      tracker.sessionId = current
-      tracker.restoreComplete = false
-      tracker.liveTeamIds = new Set()
-      setWasActive(false)
-      setAutoOpened(false)
-    }
+    if (canvasEntry && canvasEntry.owner !== current) setCanvasEntry(undefined)
     if (openOwner === undefined || openOwner === current) return
     setOpen(false)
     setOpenOwner(undefined)
-  }, [current, openOwner])
+  }, [current, openOwner, canvasEntry])
 
   // Only the wide docked mode asks the conversation column to yield. Floating
   // and compact modes are intentionally true overlays. The width is written as
@@ -1080,22 +1060,7 @@ export function ActivityPanel({ sessionsList, modelDirectories, openMember, t, c
     // survive a browser or `dsh web` restart.
     onMonitorStatus?.(current, 'loading')
     const controller = startActivityPolling(currentTargets, { discoverySessionId: current, onStatus: status => onMonitorStatus?.(current, status) })
-    let active = true
-    const tracker = autoOpenTrackerRef.current
-    if (tracker.sessionId === current && !tracker.restoreComplete) {
-      void controller.firstTick.then(() => {
-        const latest = autoOpenTrackerRef.current
-        if (!active || latest.sessionId !== current || latest.restoreComplete) return
-        latest.liveTeamIds = new Set(getActivitySnapshotsSnapshot().teams
-          .filter((team) => team.captainSessionId === current)
-          .map((team) => team.teamId))
-        latest.restoreComplete = true
-      })
-    }
-    return () => {
-      active = false
-      controller.stop()
-    }
+    return () => controller.stop()
   }, [current, currentTargets, onMonitorStatus])
 
   useEffect(() => {
@@ -1152,47 +1117,16 @@ export function ActivityPanel({ sessionsList, modelDirectories, openMember, t, c
     [archivedTeams, current, teams],
   )
   const visibleCount = visibleTeams.length + visibleArchived.length + visibleHistoric.length
-  const visibleLiveTeamIds = useMemo(
-    () => visibleTeams.map((team) => team.teamId).sort(),
-    [visibleTeams],
-  )
-  const visibleLiveTeamKey = visibleLiveTeamIds.join('\u0000')
-
   useEffect(() => {
-    const tracker = autoOpenTrackerRef.current
-    const settled = performance.now() - mountedAtRef.current >= AUTO_OPEN_SETTLE_MS
-    const shouldAutoExpand = tracker.sessionId === current && activityPanelShouldAutoExpand({
-      alreadyAutoOpened: autoOpened,
-      pageSettled: settled,
-      restoreComplete: tracker.restoreComplete,
-      previousLiveTeamIds: tracker.liveTeamIds,
-      currentLiveTeamIds: visibleLiveTeamIds,
-    })
-    if (tracker.sessionId === current && tracker.restoreComplete) {
-      tracker.liveTeamIds = new Set(visibleLiveTeamIds)
-    }
-    if (visibleCount > 0) {
-      setWasActive(true)
-      // Existing state restored for a reopened conversation stays collapsed.
-      // Only a live team that appears after the restore pass may auto-expand.
-      if (shouldAutoExpand) {
-        setOpenOwner(current)
-        setOpen(true)
-        setAutoOpened(true)
-      }
-      return
-    }
+    if (visibleCount > 0) { setWasActive(true); return }
     if (!wasActive) return
     const timer = setTimeout(() => {
       setOpen(false)
       setOpenOwner(undefined)
       setWasActive(false)
-      // Re-arm auto-expand: a later activity (new team, new session) may
-      // open the panel on its own again.
-      setAutoOpened(false)
     }, AUTOCLOSE_GRACE_MS)
     return () => { clearTimeout(timer) }
-  }, [visibleCount, visibleLiveTeamKey, autoOpened, wasActive, current])
+  }, [visibleCount, wasActive, current])
 
   const busy = useMemo(
     () => visibleTeams.some((team) => team.members.some((member) => member.activity === 'working')),
@@ -1330,17 +1264,25 @@ export function ActivityPanel({ sessionsList, modelDirectories, openMember, t, c
     transform: `translate3d(${geometry.x}px, ${geometry.y}px, 0)`,
   }
 
-  if (!conversationVisible || (!hasTeams && !expanded)) return null
+  if (!conversationVisible || (!hasTeams && !expanded && !canvasEntry)) return null
 
   return (
     <>
       {!expanded && (
         <CollapsedBadge count={visibleCount} busy={busy} t={t} onClick={() => {
           if (current === undefined) return
-          setOpenOwner(current)
-          setOpen(true)
+          const team = visibleTeams[0] ?? visibleArchived[0]
+          if (team) setCanvasEntry({ owner: current, teamId: team.teamId, archived: visibleArchived.includes(team) })
+          else { setOpenOwner(current); setOpen(true) }
         }} />
       )}
+      {canvasEntry && canvasEntry.owner === current && <WorkflowWorkbench
+        key={canvasEntry.owner + ':' + canvasEntry.teamId} initiallyOpen sessionId={canvasEntry.owner}
+        teamId={canvasEntry.teamId} archived={canvasEntry.archived} t={t}
+        modelDirectory={modelDirectories.directoryFor(canvasEntry.owner)}
+        openExecution={(id, parent) => navigateToSession((parent ?? canvasEntry.owner) as SessionId, id as SessionId)}
+        onShowActivity={() => { setCanvasEntry(undefined); setOpenOwner(current); setOpen(true) }}
+        onClose={() => setCanvasEntry(undefined)} />}
       {expanded && (
         <aside
           ref={panelRef}

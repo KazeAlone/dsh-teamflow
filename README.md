@@ -4,7 +4,7 @@ English · [简体中文](./README_ZH.md)
 
 This is the [yogurtss/dsh-teamflow](https://github.com/yogurtss/dsh-teamflow) development fork of [NanmiCoder/dsh-agent-teams](https://github.com/NanmiCoder/dsh-agent-teams). Discuss a goal, form an initial team, then adjust member instructions, task handoffs and human checkpoints.
 
-**Install this fork from GitHub or a local build.** Its new package name is `@yogurtss/dsh-teamflow`; the Git stable version is `0.2.5`. It is not published to npm. The upstream package is `@nanmicoder/dsh-agent-teams`.
+**Install this fork from GitHub or a local build.** Its new package name is `@yogurtss/dsh-teamflow`; this development version is `0.2.6-dev.1`. It is not published to npm. The upstream package is `@nanmicoder/dsh-agent-teams`.
 
 Click **团队与流程** at the top of the TeamFlow activity panel or team page to open the workbench. The button shows pending changes and human reviews; completed and archived teams also open the full canvas, including task requirements, results and verification records.
 
@@ -13,7 +13,11 @@ Human checkpoints require opening their evidence and clicking **通过验收** o
 Use `/teamflow` to start. Only `/teamflow` and `/teamflow-<profile>` commands are registered; the old `/agent-teams` command and its profile aliases have been removed. Use `/teamflow --profile <name> <goal>` to select a profile explicitly. The `.agent-teams/` data directory, internal `agent_teams_*` tools and session event protocol remain unchanged to preserve existing records. Historical reports retain the names and screenshots captured at the time.
 
 
-## 0.2.5 · Template workflows keep a main conversation
+## Canvas and task review
+
+The conversation activity dot opens the workflow canvas directly. Select a node to read its full requirements or edit beside the title. Generated template tasks share an item selector and a single final approval. Install this development build from `github:yogurtss/dsh-teamflow#dev`.
+
+## Template workflows keep a main conversation
 
 Applying a template names its main conversation after the workflow and keeps it in the Session list across restarts. Opening an older untitled template workflow repairs its title while preserving existing custom titles. Task refinement continues inside Workflow. See [changes and validation](./release-notes/v0.2.5-dev.14.md).
 
@@ -168,7 +172,7 @@ The inherited activity panel, slash command and configuration remain available, 
 
 ## Activity dot and team panel
 
-Click the activity dot on the right of the current chat to open the compact **TeamFlow activity** panel. The **Activity panel** button on a team card opens the same panel, including historical teams. This remains the primary entry on hosts with native workspace tabs.
+Click the activity dot to open the current workflow canvas. Choose **Team activity and history** on the canvas to reach other records or team controls. A team card’s **Activity panel** button still opens its activity view.
 
 The panel shows members, task dependencies and execution progress, and can float, dock, resize or collapse back to the dot. Collapsing it does not stop the team. **Team & workflow** opens the full canvas; discussion context stays in independent discussion views. Human review markers, running animations, task discussion and rerun controls remain available. [Screenshots and validation](./docs/activity-panel-restored-2026-10-28/README.md).
 
