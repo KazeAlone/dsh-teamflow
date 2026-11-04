@@ -4,7 +4,7 @@ English · [简体中文](./README_ZH.md)
 
 This is the [yogurtss/dsh-teamflow](https://github.com/yogurtss/dsh-teamflow) development fork of [NanmiCoder/dsh-agent-teams](https://github.com/NanmiCoder/dsh-agent-teams). Discuss a goal, form an initial team, then adjust member instructions, task handoffs and human checkpoints.
 
-**Install this fork from GitHub or a local build.** Its new package name is `@yogurtss/dsh-teamflow`; the development version is `0.2.5-dev.14`. It is not published to npm. The upstream package is `@nanmicoder/dsh-agent-teams`.
+**Install this fork from GitHub or a local build.** Its new package name is `@yogurtss/dsh-teamflow`; the Git stable version is `0.2.5`. It is not published to npm. The upstream package is `@nanmicoder/dsh-agent-teams`.
 
 Click **团队与流程** at the top of the TeamFlow activity panel or team page to open the workbench. The button shows pending changes and human reviews; completed and archived teams also open the full canvas, including task requirements, results and verification records.
 
@@ -13,13 +13,13 @@ Human checkpoints require opening their evidence and clicking **通过验收** o
 Use `/teamflow` to start. Only `/teamflow` and `/teamflow-<profile>` commands are registered; the old `/agent-teams` command and its profile aliases have been removed. Use `/teamflow --profile <name> <goal>` to select a profile explicitly. The `.agent-teams/` data directory, internal `agent_teams_*` tools and session event protocol remain unchanged to preserve existing records. Historical reports retain the names and screenshots captured at the time.
 
 
-## 0.2.5-dev.14 · Template workflows keep a main conversation
+## 0.2.5 · Template workflows keep a main conversation
 
 Applying a template names its main conversation after the workflow and keeps it in the Session list across restarts. Opening an older untitled template workflow repairs its title while preserving existing custom titles. Task refinement continues inside Workflow. See [changes and validation](./release-notes/v0.2.5-dev.14.md).
 
 ## Discussions stay inside Workflow
 
-Flow, task, member and review discussions stay inside the Workflow window. They no longer appear alongside main chats in the Session list. Existing discussion history remains available in Workflow; no session is deleted or archived. Update the development build and refresh/restart the client to load this behavior. See [workflow-only discussions](./release-notes/v0.2.5-dev.9.md).
+Flow, task, member and review discussions stay inside the Workflow window. They no longer appear alongside main chats in the Session list. Existing discussion history remains available in Workflow; no session is deleted or archived. Update the plugin and refresh/restart the client to load this behavior. See [workflow-only discussions](./release-notes/v0.2.5-dev.9.md).
 
 New workflows generate members, dependencies and reusable contracts first, then feed those contracts and the current goal into a second call for complete instance tasks. Templates skip the first stage. Users review the final proposal once; interrupted generation retains its general draft. The second stage returns only task IDs and three text fields; the server preserves general contracts and configuration state. See [two-stage generation and validation](./release-notes/v0.2.5-dev.8.md).
 
@@ -104,7 +104,7 @@ Check `dsh --version`. Replace `web` with your actual profile and stop that Harn
 
 ~~~sh
 dsh plugin --profile web remove @yogurtss/dsh-teamflow
-dsh plugin --profile web add github:yogurtss/dsh-teamflow#dev
+dsh plugin --profile web add github:yogurtss/dsh-teamflow#main
 dsh --profile web
 ~~~
 
@@ -335,4 +335,4 @@ Existing editable tasks also offer **One-click AI split**: review both layers, t
 
 Templates retain only generic task contracts. Adaptation produces complete standalone instance requirements, which are the only task-layer text delivered to execution agents. Older layered tasks and changed goals require regeneration or explicit review. See [release notes](./release-notes/v0.2.4.md).
 
-Development builds include three read-only starter workflows: Feature development, Bug investigation and repair, and Operator development and optimization. Customize them as personal copies. Install this development version from `github:yogurtss/dsh-teamflow#dev`; `#main` remains the classic stable build.
+The stable build includes three read-only starter workflows: Feature development, Bug investigation and repair, and Operator development and optimization. Customize them as personal copies. Install the stable build from `github:yogurtss/dsh-teamflow#main`. Use `#dev` for development or `#classic` for the historical version without Gallery.
