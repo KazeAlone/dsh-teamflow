@@ -188,8 +188,6 @@
 .nativeBanner>span { max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .draftNode { border: 2px dashed var(--wb-accent); pointer-events: none; }
 .editor footer { background: var(--wb-bg); padding: 10px 16px; border-top: 1px solid var(--wb-border); }
-.suspendedNotice { padding: 10px 20px; border-bottom: 1px solid var(--wb-border); background: var(--wb-bg); font-size: 12px; max-height: 150px; overflow: auto; }
-.suspendedNotice summary { cursor: pointer; color: #b77c12; font-weight: 600; }.suspendedNotice p { margin: 8px 0; }.suspendedNotice button { margin: 0 6px 6px 0; }
 .node[data-suspended='true'] { border-style: dashed; border-color: #b77c12; }
 .contextPanel { font-size: 12px; line-height: 1.75; border: 1px solid var(--wb-border); border-radius: 10px; background: var(--wb-bg); padding: 14px; margin-bottom: 16px; overflow-wrap: anywhere; }
 .contextPanel>header { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px; margin-bottom: 12px; }
@@ -306,3 +304,12 @@ form.editor { display: flex; flex-direction: column; padding: 0; }
 
 .discussion[data-template-review="true"] > .messages { flex: none; min-height: 0; max-height: 35%; padding: 6px 16px; }
 .discussion[data-template-review="true"] > .proposal { flex: 1; min-height: 0; max-height: none; }
+
+.attention {
+  display: flex; align-items: center; gap: 8px; flex: none; min-width: 0;
+  padding: 6px 16px; background: var(--wb-bg); border-bottom: 1px solid var(--wb-border);
+}
+.attention strong { flex: none; font-size: 12px; }
+.attention button, .attention select { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.attention button { color: var(--wb-accent); }
+.attention select { flex-shrink: 0; width: 10em; max-width: 35%; }

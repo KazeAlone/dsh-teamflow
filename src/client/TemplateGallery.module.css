@@ -17,3 +17,9 @@
 .apply,.guide,.chat{padding:24px;background:var(--wb-bg);border:1px solid var(--wb-border);border-radius:16px}.apply textarea{min-height:180px}.apply button{margin-top:20px;width:100%}.guide{position:sticky;top:0;color:var(--wb-muted);line-height:1.8}.guide h3{color:var(--wb-text)}.chat{position:sticky;top:0;max-height:75vh;overflow:auto}.actions{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin:20px 0}.warning{padding:12px;border-radius:8px;background:color-mix(in srgb,#d99824 12%,var(--wb-bg));color:var(--wb-text);white-space:pre-wrap}.layers{display:grid;gap:10px}.layers .toggle{flex-direction:row;align-items:center}.toggle input{width:auto}.layers textarea:disabled{opacity:.65}.layers strong{margin-top:8px}
 @media(max-width:900px){.gallery{padding:20px}.editorGrid{grid-template-columns:1fr}.guide,.chat{position:static}.hero{flex-wrap:wrap}.hero>button{margin-left:0}.hero h2{font-size:23px}.filters{flex-wrap:wrap}.filters span{margin:0}.cards{grid-template-columns:repeat(auto-fill,minmax(240px,1fr))}}
 @media(prefers-reduced-motion:reduce){.card{transition:none}.card:hover{transform:none}}
+
+.applyGrid { display: grid; grid-template-columns: minmax(280px, .85fr) minmax(0, 1.15fr); gap: 24px; align-items: start; }
+.applyGrid h3 { margin-top: 0; }
+.applyGrid .flowLarge { margin-top: 0; }
+.applyGrid > .warning { margin: 0; }
+@media (max-width: 900px) { .applyGrid { grid-template-columns: minmax(0, 1fr); } }

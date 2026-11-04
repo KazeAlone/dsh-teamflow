@@ -104,7 +104,7 @@ function Workbench({ sessionId, teamId, archived = false, waitingCount = 0, open
   const [maximized, setMaximized] = useState(false)
   const [inspectorWidth, setInspectorWidth] = useState(420)
   const [inspectorExpanded, setInspectorExpanded] = useState(false)
-  const [inspectorHidden, setInspectorHidden] = useState(false)
+  const [inspectorHidden, setInspectorHidden] = useState(true)
   const [positions, setPositions] = useState<Record<string, { x: number; y: number }>>({})
   const [link, setLink] = useState<{ from: string; x: number; y: number; to?: string; issue?: string }>()
   const suppressNodeClick = useRef(false)
@@ -439,7 +439,15 @@ function Workbench({ sessionId, teamId, archived = false, waitingCount = 0, open
       target.scrollTo(left - move.clientX + x, top - move.clientY + y)
     }
     const cleanup = () => { target.onpointermove = null; target.onpointerup = null; target.onpointercancel = null; delete target.dataset.dragging; if (target.hasPointerCapture(event.pointerId)) target.releasePointerCapture(event.pointerId) }
-    target.onpointerup = () => { cleanup(); if (!moved && blank && !panMode) selectDiscussion('graph') }
+    target.onpointerup = () => {
+      cleanup()
+      if (moved || !blank || panMode) return
+      updateView(current => selectWorkbench(current, { type: 'discussion', key: 'graph' }, team))
+      setPane('flow')
+      setInspectorHidden(true)
+      setError('')
+      setFeedback('')
+    }
     target.onpointercancel = () => { cleanup(); suppressPanClick.current = false }
   }
   function resizeInspector(event: ReactPointerEvent<HTMLDivElement>): void {
@@ -501,6 +509,27 @@ function Workbench({ sessionId, teamId, archived = false, waitingCount = 0, open
     {data.ready.map(id => <button type="button" key={id} disabled={working} onClick={() => void openReview(id)}>{l("验收 · ")}{team?.tasks.find(t => t.id === id)?.subject} ↗</button>)}
     {!reviewEntryOnly && <small>{l("上游已完成 · 打开独立对话查看材料与 AI 总结")}</small>}
   </div>
+  const adaptation = pendingProposals.find(item => item.key === 'adapt' && item.proposal?.base === data?.base)?.proposal
+  const proposedTasks = new Set(adaptation?.operations.flatMap(op => op.action === 'update_task' ? [op.id] : []))
+  const attention = [
+    ...pendingProposals.map(item => ({
+      key: 'proposal:' + item.key, label: l("确认方案 · {0}", item.proposal!.title), open: () => selectDiscussion(item.key),
+    })),
+    ...(archiveView ? [] : data?.ready ?? []).map(id => ({
+      key: 'review:' + id, label: l("验收 · {0}", team?.tasks.find(task => task.id === id)?.subject ?? id), open: () => void openReview(id),
+    })),
+    ...(archiveView ? [] : unconfigured.filter(task => !proposedTasks.has(task.id))).map(task => ({
+      key: 'configure:' + task.id, label: l("配置 · {0}", task.subject), open: () => { setEditing(true); locateTask(task.id) },
+    })),
+    ...(archiveView ? [] : team?.tasks.filter(task => task.workflowRerunRequired && !task.workflowConfigPending) ?? []).map(task => ({
+      key: 'rerun:' + task.id, label: l("查看重跑路径 · {0}", task.subject), open: () => { setEditing(false); locateTask(task.id) },
+    })),
+    ...(archiveView || team?.halted ? [] : team?.tasks.filter(task => task.status === 'failed' && !task.workflowRerunRequired && !task.workflowConfigPending) ?? []).map(task => ({
+      key: 'failure:' + task.id, label: l("查看失败任务 · {0}", task.subject), open: () => { setEditing(false); locateTask(task.id) },
+    })),
+  ]
+  const firstAction = attention[0]
+  const completed = team?.tasks.filter(task => task.status === 'completed').length ?? 0
   // The chat header always exposes Teamflow, even before a team exists.
   return <>
     {!initiallyOpen && <>
@@ -534,8 +563,8 @@ function Workbench({ sessionId, teamId, archived = false, waitingCount = 0, open
         else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus() }
       }
     }}>
-      <header className={css.header}><div className={css.title}><BrandIcon size={32}/><div><strong>{team?.name ?? 'Teamflow'}</strong><span>{archiveView ? l("归档画布 · 成果与详情完整保留") : team?.phase === 'staged' ? l("准备流程 · 确认后开始执行") : l("团队工作台")}</span></div></div>
-        <div>{!galleryMode && (archiveView ? <button className={css.primary} disabled={working} onClick={() => void perform('restore_archive')}><WorkflowIcon name="edit" />{l("恢复并编辑流程")}</button> : <button aria-pressed={editing} onClick={() => {setEditing(!editing);updateView(current=>({...current,revision:current.revision+1}))}}>{editing ? <IconBranchOutline16 /> : <WorkflowIcon name="edit" />}{editing ? l("查看流程") : l("编辑流程")}</button>)}
+      <header className={css.header}><div className={css.title}><BrandIcon size={32}/><div><strong>{team?.name ?? 'Teamflow'}</strong><span>{archiveView ? l("归档画布 · 成果与详情完整保留") : team?.phase === 'staged' ? l("准备流程 · 确认后开始执行") : l("团队工作台")}{!!team?.tasks.length && <> · {l("已完成 {0}/{1}", completed, team.tasks.length)}</>}</span></div></div>
+        <div>{team && !galleryMode && (archiveView ? <button className={css.primary} disabled={working} onClick={() => void perform('restore_archive')}><WorkflowIcon name="edit" />{l("恢复并编辑流程")}</button> : <button aria-pressed={editing} onClick={() => {setEditing(!editing);updateView(current=>({...current,revision:current.revision+1}))}}>{editing ? <IconBranchOutline16 /> : <WorkflowIcon name="edit" />}{editing ? l("查看流程") : l("编辑流程")}</button>)}
           {!galleryMode && !archiveView && team?.phase === 'staged' && <button className={css.primary} disabled={working || unsaved.length > 0 || unconfigured.length > 0 || pendingCount > 0} title={unsaved.length ? l("请先保存属性草稿") : unconfigured.length ? l("请先完成待配置节点") : pendingCount ? l("请先处理待确认的修改") : undefined} onClick={() => void perform('start')}>{l("确认并启动")}</button>}
           {!galleryMode && !archiveView && team?.phase !== 'staged' && team && !team.halted && <span data-flow-controls title={l(zh['flow.control.hint'])}>
             <button disabled={working || unsaved.length > 0 || !flow?.canStart} onClick={() => void perform('set_flow_enabled',{enabled:true,version:flowControlVersion(team)})}>{l("开始全部")}</button>
@@ -551,15 +580,20 @@ function Workbench({ sessionId, teamId, archived = false, waitingCount = 0, open
         {team.workflow?.templateSource&&team.phase==='staged'&&<button disabled={working} onClick={()=>void startEmbedded('adapt')}><BrandIcon/>{l("统一适配本次任务")}</button>}<strong>{l("创建")}</strong><button disabled={working || archiveView} onClick={() => void createNode('task')}><WorkflowIcon name="task" />{l("任务节点")}</button><button disabled={working || archiveView} onClick={() => void createNode('check')}><WorkflowIcon name="review" />{l("人工节点")}</button><button disabled={working || archiveView} onClick={() => edit('member')}><WorkflowIcon name="agent" />Agent</button>
         <span className={css.commandSpacer} /><button aria-pressed={!inspectorHidden} onClick={() => { setPane(inspectorHidden ? 'discussion' : 'flow'); setInspectorHidden(!inspectorHidden) }}>{inspectorHidden ? l("显示右侧面板") : l("收起右侧面板")}</button>
       </nav>}
-      {team && <section className={css.saveBar} aria-label={l("保存状态")}>
+      {team && (unsaved.length > 0 || saveState !== 'saved' || storageError) && <section className={css.saveBar} aria-label={l("保存状态")}>
         <span role="status">{saveState === 'saving' ? l("正在保存画布…") : saveState === 'error' ? l("上次保存失败，请重试") : l("节点与连线自动保存")} · {unsaved.length ? l("{0} 个对象有未保存属性", unsaved.length) : l("属性已保存")}</span>
         {!!unsaved.length && <><button disabled={working || archiveView} onClick={() => void saveAllProperties()}>{l("保存全部属性")}</button><details><summary>{l("查看未保存对象")}</summary>{unsaved.map(item => <button key={item.key} onClick={() => edit(item.target.type,item.target.id)}>{item.label} {l(" · 未保存")}</button>)}</details></>}
-        {!!unconfigured.length && <details><summary>{unconfigured.length} {l(" 个节点待配置")}</summary>{unconfigured.map(task => <button key={task.id} onClick={() => {setEditing(true);locateTask(task.id)}}>{task.subject} {l(" · 去配置")}</button>)}</details>}
         {storageError && <span role="alert">{workflowMessage(storageError, l)}</span>}
       </section>}
       {team && <nav className={css.paneTabs} aria-label={l("工作台视图")}>{(['members', 'flow', 'discussion'] as const).map(value => <button key={value} aria-pressed={pane === value} onClick={() => { setPane(value); setInspectorExpanded(false); if (value === 'discussion') setInspectorHidden(false) }}>{value === 'members' ? l("对象列表") : value === 'flow' ? l("任务流程") : l("修改与验收")}{value === 'discussion' && proposal && <i aria-label={l("有待确认的修改")} />}</button>)}</nav>}
-      {pendingNotice}
-      {!!team?.tasks.some(task => task.workflowRerunRequired) && <details className={css.suspendedNotice} open><summary>{l("上游重新执行 · ")}{team.tasks.filter(task => task.workflowRerunRequired).length} {l(" 个下游节点需使用新结果")}</summary><p>{l("选择任意待重跑节点，点击「重跑到此节点」，会自动安排它及必要上游。人工检查仍需确认；已有结果与旧验收不再用于本轮。")}</p>{team.tasks.filter(task => task.workflowRerunRequired).map(task => <button key={task.id} onClick={() => { edit(task.checkpoint ? 'check' : 'task', task.id) }}>{task.subject} · {taskReadiness(team,task,l).label}</button>)}</details>}
+      {firstAction && <nav className={css.attention} aria-label={l("待处理")}>
+        <strong>{l("待处理")} · {attention.length}</strong>
+        <button disabled={working} title={firstAction.label} onClick={firstAction.open}>{firstAction.label}</button>
+        {attention.length > 1 && <select aria-label={l("其他待处理事项")} value="" disabled={working} onChange={event => attention.find(item => item.key === event.target.value)?.open()}>
+          <option value="" disabled>{l("其他待处理事项")}</option>
+          {attention.slice(1).map(item => <option key={item.key} value={item.key}>{item.label}</option>)}
+        </select>}
+      </nav>}
       {error && <div className={css.error} role="alert">{workflowMessage(error, l)}</div>}
       {archiveView && <p className={css.notice}>{l("归档画布 · 可查看全部节点、连接与成果。恢复并编辑将保留原归档和已完成成果，建立待确认流程，不会自动执行。")}</p>}
       {feedback && !editor && <p className={css.notice} role="status">{workflowMessage(feedback, l)}</p>}
@@ -583,7 +617,6 @@ function Workbench({ sessionId, teamId, archived = false, waitingCount = 0, open
         </aside>
         <main className={css.graphArea}>
           <nav className={css.toolbar} aria-label={l("画布工具")}><button aria-pressed={!panMode} onClick={() => setPanMode(false)}><WorkflowIcon name="select" />{l("选择")}</button><button aria-pressed={panMode} onClick={() => setPanMode(true)}><WorkflowIcon name="pan" />{l("平移")}</button><button aria-label={l("缩小画布")} disabled={zoom <= .1} onClick={() => changeZoom(zoom - .1)}>−</button><button title={l("恢复 100%")} aria-label={l("缩放 {0}%，点击恢复 100%", Math.round(zoom * 100))} onClick={() => changeZoom(1)}>{Math.round(zoom * 100)}%</button><button aria-label={l("放大画布")} disabled={zoom >= 2} onClick={() => changeZoom(zoom + .1)}>＋</button><button onClick={fitCanvas}><WorkflowIcon name="fit" />{l("适应画布")}</button><button disabled={working || archiveView || !team.tasks.length} onClick={() => void arrangeCanvas()}><WorkflowIcon name="arrange" />{l("自动整理")}</button></nav>
-          {reviewNotice}
           <div className={css.canvas} data-pan={panMode || !editing || archiveView} data-linking={!!link} ref={canvas} onPointerDownCapture={beginPan} onClickCapture={event=>{if(suppressPanClick.current) {suppressPanClick.current=false;event.preventDefault();event.stopPropagation()}}}>
             <div className={css.plane} style={{ width: graphWidth, height: graphHeight, zoom }}>
               <svg className={css.edges} aria-label={l("任务交接连线")}><defs><marker id="workflow-arrow" markerUnits="userSpaceOnUse" markerWidth="8" markerHeight="8" refX="8" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8" fill="var(--wb-muted)" /></marker><marker id="workflow-arrow-active" markerUnits="userSpaceOnUse" markerWidth="8" markerHeight="8" refX="8" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8" fill="var(--wb-accent)" /></marker></defs>
@@ -642,7 +675,7 @@ function Workbench({ sessionId, teamId, archived = false, waitingCount = 0, open
           </header>
           <section className={css.taskBrief}><strong>{l("任务要求 / 验收要求")}</strong><p>{activeTask.description || l("暂无任务说明")}</p></section>
           {renderReadiness(activeTask)}
-          {renderTaskControl(activeTask)}{renderRerunPath(activeTask)}
+          {!['completed', 'failed', 'cancelled'].includes(activeTask.status) && renderTaskControl(activeTask)}{renderRerunPath(activeTask)}
           {activeTask.checkpoint && <p>{l("第 ")}{activeTask.checkpoint.round} {l(" 轮 · ")}{activeTask.checkpoint.note || l("暂无验收意见")}</p>}<div>
             {!archiveView && !activeTask.checkpoint && <button className={css.primary} disabled={working} onClick={() => void startEmbedded(`task:${activeTask.id}`)}><WorkflowIcon name="chat" />{l("与 AI 讨论任务")}</button>}
             {!archiveView && !activeTask.checkpoint && activeTask.assignee && rerunnableTasks(team.tasks, activeTask.assignee).some(task => task.id === activeTask.id) && <button disabled={working} onClick={() => { edit('member', activeTask.assignee, {rerunTaskId:activeTask.id}) }}>{l("修改负责人并重跑此任务")}</button>}
