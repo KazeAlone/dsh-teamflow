@@ -1062,8 +1062,8 @@ test('embedded discussion reads and sends only the bound isolated session', asyn
   const events = [{ type:'user/message', seq:1, data:{ source:{kind:'user'}, content:[{type:'text',text:'Original discussion'}] } }, { type:'assistant/message', seq:2, data:{ message:{ source:{kind:'model'}, content:[{type:'text',text:'AI response'}] } } }], sent = []
   const captain = { id:'captain-id', session:{header:{cwd:root},ownEvents:()=>[]},status:'idle' }
   const agent = { id:nativeId, session:{header:{cwd:root},ownEvents:()=>events},status:'idle',followup:message=>sent.push(message) }
-  let route, status, result
-  const ctx = { tools:{register(){}},subagents:{registerContinuableSetup(){}},agents:{get:id=>id===captain.id?captain:id===agent.id?agent:undefined},effect:fn=>fn(),logger:{warn(){}} }
+  let route, status, result, streamListener
+  const ctx = { on:(event,listener)=>{if(event==='agent/assistant-stream')streamListener=listener}, tools:{register(){}},subagents:{registerContinuableSetup(){}},agents:{get:id=>id===captain.id?captain:id===agent.id?agent:undefined},effect:fn=>fn(),logger:{warn(){}} }
   const conversations = installWorkflowConversations(ctx, {stateDir:'.agent-teams',maxMembers:8}, workflowMaterials)
   installWorkflowWorkbench(ctx, {stateDir:'.agent-teams',maxMembers:8}, {kickTeam:async()=>{}}, {register:value=>{route=value;return()=>{}}}, conversations)
   async function call(action, message, discussion = 'member:worker') { const req = Readable.from([JSON.stringify({sessionId:captain.id,teamId:'demo',discussion,action,message})]); req.method='POST'; req.headers={}; await route.handler(req,{writeHead:code=>{status=code},end:body=>{result=JSON.parse(body)}}) }
@@ -1071,6 +1071,15 @@ test('embedded discussion reads and sends only the bound isolated session', asyn
   await call('conversation_send','Make the role more specific'); assert.equal(status,200); assert.equal(sent[0].content[0].text,'Make the role more specific')
   assert.equal(captain.session.ownEvents().length,0)
   agent.status='running'; await call('conversation_send','another'); assert.equal(status,409); assert.equal(sent.length,1)
+  streamListener({agent,frame:{type:'start',attemptId:'live',revision:1}})
+  streamListener({agent,frame:{type:'chunk',attemptId:'live',revision:2,index:0,chunk:{type:'text-delta',index:0,text:'Partial'}}})
+  await call('conversation_state'); assert.equal(result.messages.at(-1).text,'Partial'); assert.equal(result.messages.at(-1).streaming,true)
+  streamListener({agent:captain,frame:{type:'start',attemptId:'other',revision:1}})
+  streamListener({agent:captain,frame:{type:'chunk',attemptId:'other',revision:1,index:0,chunk:{type:'text-delta',index:0,text:'Must stay private'}}})
+  await call('conversation_state'); assert.equal(result.messages.at(-1).text,'Partial')
+  events.push({type:'assistant/message',seq:3,data:{message:{source:{kind:'model'},content:[{type:'text',text:'Partial complete'}]}}})
+  streamListener({agent,frame:{type:'end',attemptId:'live',revision:3,outcome:{kind:'committed',seq:3,eventType:'assistant/message'}}})
+  agent.status='idle';await call('conversation_state');assert.deepEqual(result.messages.map(m=>m.text),['Original discussion','AI response','Partial complete']);assert.equal(result.busy,false)
   await call('conversation_state',undefined,'graph'); assert.equal(status,409)
 })
 

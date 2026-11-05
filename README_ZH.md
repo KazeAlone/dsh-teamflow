@@ -4,7 +4,9 @@
 
 这是 [yogurtss/dsh-teamflow](https://github.com/yogurtss/dsh-teamflow) 开发分支，基于 [NanmiCoder/dsh-agent-teams](https://github.com/NanmiCoder/dsh-agent-teams) 扩展。让模型先讨论并建立团队，再由你调整成员职责、任务交接和人工验收节点。
 
-**安装本分支请使用本仓库 GitHub 地址或本地构建包。** 新包名为 `@yogurtss/dsh-teamflow`，当前开发版为 `0.2.6-dev.5`；尚未发布到 npm。原版包 `@nanmicoder/dsh-agent-teams` 与本项目不同。
+**安装本分支请使用本仓库 GitHub 地址或本地构建包。** 新包名为 `@yogurtss/dsh-teamflow`，当前开发版为 `0.2.6-dev.6`；尚未发布到 npm。原版包 `@nanmicoder/dsh-agent-teams` 与本项目不同。
+
+右侧讨论支持实时回复与紫色 Logo 生成提示；上翻阅读时保持位置，可点击「查看最新回复」回到底部。
 
 开发版新增左侧 **Workflow** 一级入口，与插件、自动化并列。无需先打开工程即可浏览模板、填写需求；应用时从列表选择已有工作区，或点击「添加工作区」选择文件夹，然后进入画布与本次任务讨论。需要新目录时可在系统文件夹选择器中新建；无原生选择器的宿主可输入目录路径。取消选择或返回修改需求会保留输入；宿主自动生成的空白会话不会被当成已选工作区。
 

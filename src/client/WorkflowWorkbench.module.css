@@ -341,3 +341,25 @@ form.editor { display: flex; flex-direction: column; padding: 0; }
 .adaptationIssue { padding: 10px; margin-block: 12px; border: 1px solid var(--wb-border); border-left: 3px solid var(--wb-error); border-radius: 6px; background: var(--wb-base); }
 .adaptationIssue label { display: flex; flex-direction: column; gap: 5px; }
 .adaptationIssue p { font-size: 12px; line-height: 1.65; }
+
+.discussionGenerating{display:flex;align-items:center;gap:9px;min-height:36px;padding:4px 12px;color:var(--wb-muted);font-size:12px}
+.discussionLogo{display:inline-flex;animation:discussion-breathe 1.8s ease-in-out infinite}
+.streamCaret{display:inline-block;width:2px;height:1em;margin-left:3px;background:var(--teamflow-brand,#a333f5);vertical-align:-.12em;animation:discussion-breathe 1.2s ease-in-out infinite}
+.latestReply{display:block;margin:4px auto 8px;font-size:12px;color:var(--wb-accent)}
+@keyframes discussion-breathe{0%,100%{opacity:.4}50%{opacity:1}}
+@media(prefers-reduced-motion:reduce){.discussionLogo,.streamCaret{animation:none}}
+
+.messages:has(>.embeddedChat){display:flex;flex-direction:column;gap:6px;min-height:0}
+.embeddedChat{display:flex;flex-direction:column;min-height:240px;flex:1 0 240px}
+.embeddedChat>.embeddedTranscript{flex:1;min-height:60px;max-height:45vh;overscroll-behavior:contain;overflow-anchor:none}
+.embeddedChat>.embeddedComposer{flex:none;margin:4px 0;grid-template-columns:minmax(0,1fr) auto;align-items:center}
+.embeddedComposer>label{grid-column:1/-1}
+.embeddedComposer>small{min-width:0}
+.embeddedComposer>button{grid-column:2}
+.embeddedChat>.discussionGenerating{flex:none}
+.messages:has(>.embeddedChat)>:not(.embeddedChat){flex:none}
+.messages>.embeddedChat>.embeddedTranscript{max-height:none}
+
+.discussionStatus{display:flex;align-items:center;justify-content:space-between;gap:6px;flex:none;min-height:36px}
+.discussionStatus>.latestReply{margin:0 0 0 auto;flex:none}
+.messages:has(>.embeddedChat)>.hint{display:none}

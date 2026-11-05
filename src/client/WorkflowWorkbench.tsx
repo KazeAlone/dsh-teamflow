@@ -720,7 +720,7 @@ function Workbench({ sessionId, teamId, archived = false, waitingCount = 0, open
             {archiveView ? <p className={css.hint}>{l("恢复并编辑流程后可继续讨论。")}</p> : embeddedDiscussion === discussion && activeId ? <EmbeddedDiscussion key={`${activeId}:${discussion}:${conversation?.native?.sessionId}`} sessionId={sessionId} teamId={activeId} discussion={discussion} /> : <button className={css.primary} disabled={working} onClick={() => member ? prepareDiscussion(member.name) : void startEmbedded(discussion)}>{l(conversation?.native ? "继续在此处讨论" : "在此处开始讨论")}</button>}
             <details open={archiveView || !proposal && selection.type === 'member'}><summary>{l("已保存资料（不含待确认修改）")}</summary><WorkflowContext team={team} discussion={discussion} onSelect={key => key.startsWith('member:') ? edit('member', key.slice(7)) : selectDiscussion(key)} openExecution={openExecution} /></details>
             {conversation?.materials && <details open><summary>{l("本轮验收材料与证据")}</summary><ReviewMaterials text={conversation.materials} /></details>}
-            {data.busy.includes(discussion) && <p role="status">{l("原生对话正在整理方案…")}</p>}
+            {embeddedDiscussion !== discussion && data.busy.includes(discussion) && <p role="status">{l("原生对话正在整理方案…")}</p>}
           </MessageArea>
           {!archiveView && proposal && <section className={css.proposal}>{renderProposalReview()}</section>}
           {!archiveView && reviewTask && conversation?.evidence && conversation.materialsRound === reviewTask.checkpoint?.round && data.ready.includes(reviewTask.id) && !reviewTask.checkpoint?.decision && <div className={css.decisions}>

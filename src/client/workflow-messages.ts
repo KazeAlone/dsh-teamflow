@@ -762,3 +762,5 @@ Object.assign(workflowEnglish, {
  '输入工作区所在机器上的完整文件夹路径':'Enter the full folder path on the workspace host',
  '添加并继续':'Add and continue'
 })
+
+Object.assign(workflowEnglish, {'正在回复…':'Replying…','查看最新回复':'View latest reply'})

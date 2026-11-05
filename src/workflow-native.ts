@@ -16,6 +16,7 @@ import { resolveMemberLlmSelection } from './members.ts'
 import { checkpointInputs, checkpointReady, proposeWorkflow, workflowFingerprint, workflowState } from './workflow.ts'
 import { extractedTemplate, templateSeed, templateGenerationFormat, templateDefinitionParameter, validateAdaptation } from './templates.ts'
 import { taskText, requireTaskDescriptions } from './task-description.ts'
+import { DiscussionStreams } from './workflow-stream.ts'
 
 export function reviewOpening(team: TeamState, taskId: string): string {
   const task = team.tasks.find(t => t.id === taskId && t.checkpoint)
@@ -92,6 +93,11 @@ export function boundDiscussion(team: TeamState, agent: Agent): WorkflowDiscussi
 export function installWorkflowConversations(ctx: Context, config: ToolsConfig,
   materials: (team: TeamState, taskId: string, workspace: string) => { text: string; evidence: string },
 ) {
+  const streams = new DiscussionStreams()
+  ctx.on?.('agent/assistant-stream', ({agent,frame}) => {
+    if (agent.id.startsWith(PREFIX)) streams.accept(agent,frame)
+  })
+  ctx.on?.('agent/disposed', ({agent}) => streams.clear(agent))
   async function scoped<T>(agent: Agent | undefined, run: (team: TeamState, discussion: WorkflowDiscussion, workspace: string) => T | Promise<T>): Promise<T> {
     if (!agent) throw new Error('需要独立配置或验收会话')
     const address = discussionAddress(agent, config.stateDir)
@@ -201,7 +207,7 @@ export function installWorkflowConversations(ctx: Context, config: ToolsConfig,
   })
 
   return {
-    async readEmbedded(team: TeamState, key: string): Promise<{ messages: { id: string; role: string; text: string }[]; busy: boolean }> {
+    async readEmbedded(team: TeamState, key: string): Promise<{ messages: { id: string; role: string; text: string; streaming?:boolean }[]; busy: boolean }> {
       const discussion = workflowDiscussion(team, key)
       if (!discussion.native?.sessionId) throw new Error('请先开启独立讨论')
       let agent = ctx.agents.get(discussion.native.sessionId as SessionId)
@@ -217,7 +223,8 @@ export function installWorkflowConversations(ctx: Context, config: ToolsConfig,
         const text = message.content.filter(block => block.type === 'text').map(block => block.text).join('\n').trim()
         return text ? [{ id: String(event.seq), role: event.type === 'user/message' ? 'user' : 'assistant', text }] : []
       }).slice(-100)
-      return { messages, busy: agent.status === 'running' }
+      const live = agent.status === 'running' ? streams.read(agent) : undefined
+      return { messages: live ? [...messages,live] : messages, busy: agent.status === 'running' }
     },
     async sendEmbedded(team: TeamState, key: string, text: string): Promise<void> {
       const discussion = workflowDiscussion(team, key)

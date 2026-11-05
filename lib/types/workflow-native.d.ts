@@ -37,6 +37,7 @@ export declare function installWorkflowConversations(ctx: Context, config: Tools
             id: string;
             role: string;
             text: string;
+            streaming?: boolean;
         }[];
         busy: boolean;
     }>;
