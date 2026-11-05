@@ -72,7 +72,7 @@ export function apply(ctx) {
             assert.equal(requests[1].called[0], 'agent_teams_create');
             assert.ok(requests.every(request => !request.toolNames.includes('agent_teams_open')));
             assert.equal(requests[1].toolNames.filter(n => n.startsWith('agent_teams_')).length, 14);
-            if (input.startsWith('/')) assert.match(requests[0].userText, /Inspect existing team state with agent_teams_status/);
+            if (input.startsWith('/')) assert.match(requests[0].userMessages.join("\n"), /Inspect existing team state with agent_teams_status/);
             assert.equal((await teamNames(ordinary.agent)).length, 14);
             await measure(agent, label.startsWith('profile') ? 'captain-profile' : 'captain');
             await send(agent, 'REOPEN_ENTRY: inspect the existing AgentTeams plan.');

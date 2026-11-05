@@ -4,7 +4,9 @@
 
 这是 [yogurtss/dsh-teamflow](https://github.com/yogurtss/dsh-teamflow) 开发分支，基于 [NanmiCoder/dsh-agent-teams](https://github.com/NanmiCoder/dsh-agent-teams) 扩展。让模型先讨论并建立团队，再由你调整成员职责、任务交接和人工验收节点。
 
-**安装本分支请使用本仓库 GitHub 地址或本地构建包。** 新包名为 `@yogurtss/dsh-teamflow`，当前开发版为 `0.2.6-dev.9`；尚未发布到 npm。原版包 `@nanmicoder/dsh-agent-teams` 与本项目不同。
+**安装本分支请使用本仓库 GitHub 地址或本地构建包。** 新包名为 `@yogurtss/dsh-teamflow`，当前开发版为 `0.2.6-dev.10`；尚未发布到 npm。原版包 `@nanmicoder/dsh-agent-teams` 与本项目不同。
+
+开发版现已支持 DSH **`0.2.1-rc.5`**，安装或更新请使用 `github:yogurtss/dsh-teamflow#dev`；正式 `main` 分支单独发布。验证范围见 [rc5 兼容记录](docs/harness-0.2.1-rc.5/README.md)。
 
 右侧讨论支持实时回复与紫色 Logo 生成提示；上翻阅读时保持位置，可点击「查看最新回复」回到底部。
 

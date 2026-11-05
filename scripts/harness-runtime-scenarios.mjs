@@ -56,7 +56,7 @@ for (const scenario of selectedScenarios) {
         // full dsh-base configuration and change only the tool name.
         writeFileSync(join(profile, 'cordis.patch.yml'), readFileSync(join(profile, 'cordis.patch.yml'), 'utf8') + '- id: tool-subagent\n  name: \'@deepseek-ai/dsh-tool-subagent\'\n  config:\n    provider: spawn\n    toolName: subagent_legacy\n    backgroundMode: continuable\n');
     if (scenario === 'fallback')
-        writeFileSync(join(profile, 'cordis.patch.yml'), readFileSync(join(profile, 'cordis.patch.yml'), 'utf8') + '- id: agent-teams\n  config:\n    stateDir: .agent-teams\n    memberProvider: spawn\n    fallback:\n      provider: runtime-lab\n      model: fixture-fallback\n');
+        writeFileSync(join(profile, 'cordis.patch.yml'), readFileSync(join(profile, 'cordis.patch.yml'), 'utf8') + '- id: teamflow\n  config:\n    stateDir: .agent-teams\n    memberProvider: spawn\n    fallback:\n      provider: runtime-lab\n      model: fixture-fallback\n');
     if (scenario === 'captain-idle-wakeup') {
         copyFileSync(join(dirname(fileURLToPath(import.meta.url)), 'fixtures/harness-runtime-idle.mjs'), join(profile, 'fixture-idle.mjs'));
         writeFileSync(join(profile, 'cordis.patch.yml'), readFileSync(join(profile, 'cordis.patch.yml'), 'utf8') + '- id: headless-startup\n  disabled: true\n- id: headless-runner\n  disabled: true\n- insert:\n    - id: runtime-lab-idle-captain\n      name: ./fixture-idle.mjs\n');
@@ -67,7 +67,7 @@ for (const scenario of selectedScenarios) {
   disabled: true
 - id: headless-runner
   disabled: true
-- id: agent-teams
+- id: teamflow
   config:
     profiles:
       demo-profile:
@@ -117,7 +117,7 @@ for (const scenario of selectedScenarios) {
   disabled: true
 - id: headless-runner
   disabled: true
-- id: agent-teams
+- id: teamflow
   config:
     profiles:
       north:
@@ -149,7 +149,7 @@ for (const scenario of selectedScenarios) {
   disabled: true
 - id: headless-runner
   disabled: true
-- id: agent-teams
+- id: teamflow
   config:
     memberMaxDepth: 1
     toolPolicies:

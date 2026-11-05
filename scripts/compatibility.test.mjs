@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync, symlinkSync } from 'node:fs'
 import { spawnSync } from 'node:child_process'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import test from 'node:test'
 import { inspectInstallation } from './doctor.mjs'
@@ -19,7 +19,7 @@ test('one audited policy change generates all peers without altering support or 
   assert.deepEqual(future, saved, 'Generating metadata must not approve or modify targets')
   assert.deepEqual(generateHostPeers(generated, future), generated, 'Idempotent generation')
   const changed = Object.keys(original.peerDependencies).filter(name => original.peerDependencies[name] !== generated.peerDependencies[name])
-  assert.equal(changed.length, 21)
+  assert.equal(changed.length, Object.keys(original.peerDependencies).filter(name => name === '@deepseek-ai/dsh' || name.startsWith('@deepseek-ai/dsh-')).length)
   for (const name of changed) {
     assert.ok(generated.peerDependencies[name].split(' || ').includes('0.2.1-rc.999'))
     assert.ok(!generated.peerDependencies[name].split(' || ').includes('0.2.1-rc.1000'), 'Unknown host stays rejected')
@@ -85,13 +85,16 @@ test('doctor runs through an installed bin symlink and reports success or failur
   mkdirSync(host)
   writeFileSync(join(host, 'package.json'), JSON.stringify({ name: '@deepseek-ai/dsh', version: policy.recommendedHost }))
   const bin = join(root, 'dsh-agent-teams-doctor')
-  symlinkSync(fileURLToPath(new URL('./doctor.mjs', import.meta.url)), bin, 'file')
+  const source = fileURLToPath(new URL('./doctor.mjs', import.meta.url))
+  const windows = process.platform === 'win32'
+  // Windows file symlinks require extra privileges; a directory junction still
+  // exercises argv[1] versus import.meta.url through a genuinely linked path.
+  symlinkSync(windows ? dirname(source) : source, bin, windows ? 'junction' : 'file')
   // Unix executes the installed shebang directly. Windows does not implement
   // shebangs: invoke Node with the same symlink path, retaining the argv[1]
   // versus import.meta.url regression without relying on a command shell.
-  const windows = process.platform === 'win32'
   const executable = windows ? process.execPath : bin
-  const args = [...(windows ? [bin] : []), '--host-root', host, '--json']
+  const args = [...(windows ? [join(bin, 'doctor.mjs')] : []), '--host-root', host, '--json']
   const run = () => spawnSync(executable, args, { encoding: 'utf8', timeout: 5_000 })
   const supported = run()
   assert.equal(supported.error, undefined)
@@ -217,6 +220,7 @@ test('doctor detects peer-only drift and a mismatched installed plugin', t => {
 
 test('released target enters the download matrix and replaces the old source prediction', () => {
   assert.equal(policy.recommendedHost, '0.2.1-rc.2')
+  assert.ok(validatePolicy(policy).includes('0.2.1-rc.5'))
   assert.ok(validatePolicy(policy).includes('0.2.1-rc.3'))
   assert.ok(validatePolicy(policy).includes('0.2.1-rc.2'))
   assert.ok(validatePolicy(policy).includes('0.2.1-rc.1'))

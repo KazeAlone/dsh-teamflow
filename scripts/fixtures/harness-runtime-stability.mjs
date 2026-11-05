@@ -63,7 +63,7 @@ export function apply(ctx) {
       assert.equal(commands.length, 0, 'captain did not execute all scripted tools');
     }
     const cmd = (name, args = {}) => ({ name: `agent_teams_${name}`, args });
-    await run(cmd('create', { name: 'stability', description: 'Stability regression', approval: 'required' }), cmd('add_member', { name: 'worker', role: 'HMR_ROLE_MARKER', tool_policy: 'restricted' }), cmd('add_member', { name: 'blocked' }), cmd('create_task', { subject: 'Long working turn', assignee: 'worker' }), cmd('create_task', { subject: 'Dependency blocked task', assignee: 'blocked', dependencies: ['t1'] }));
+    await run(cmd('create', { name: 'stability', description: 'Stability regression', approval: 'required' }), cmd('add_member', { name: 'worker', role: 'HMR_ROLE_MARKER', tool_policy: 'restricted' }), cmd('add_member', { name: 'blocked' }), cmd('create_task', { subject: 'Long working turn', description: 'Run deterministic step boundaries, then submit completion evidence.', assignee: 'worker' }), cmd('create_task', { subject: 'Dependency blocked task', description: 'Wait for t1 and verify its completion evidence.', assignee: 'blocked', dependencies: ['t1'] }));
     assert.equal(requests.filter(r => r.sessionId !== captainId).length, 0, 'staged roster must not call a model');
     await run(cmd('approve', { confirmation: 'User approved the deterministic test plan' }));
     const workerId = state().members.find(m => m.name === 'worker').id;
@@ -87,7 +87,7 @@ export function apply(ctx) {
       assert.match(JSON.stringify(result), /unknown tool|UNKNOWN_TOOL/);
     };
     await assertReloadSetup();
-    const entry = [...ctx.get('loader').entries()].find(entry => entry.options.id === 'agent-teams');
+    const entry = [...ctx.get('loader').entries()].find(entry => entry.options.id === 'teamflow');
     await entry.update({ config: { ...entry.options.config, maxMembers: 9 } });
     await entry.fiber.await();
     await assertReloadSetup();

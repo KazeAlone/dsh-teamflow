@@ -27,13 +27,13 @@ test('future targets automatically receive both platforms and a required install
 })
 
 test('historical coverage remains explicit without exempting adjacent or unknown versions', () => {
-  for (const host of ['0.2.1-rc.2', '0.2.1-rc.3']) {
+  for (const host of ['0.2.1-rc.2', '0.2.1-rc.3', '0.2.1-rc.5']) {
     for (const os of ['ubuntu-latest', 'windows-latest']) assert.ok(runtimeTargets().some(target => target.host === host && target.os === os))
   }
   const legacy = { host: '0.2.1-rc.1', os: 'ubuntu-latest' }
   assert.ok(hostVerification(legacy.host).legacyDirectInstallReason)
   assert.doesNotThrow(() => validateRuntimeReport(reportFor(legacy, false), legacy, expected))
-  for (const host of ['0.2.1-rc.2', '0.2.1-rc.3', futureVersion, '0.3.0']) assert.equal(hostVerification(host).pluginManagerInstall, true)
+  for (const host of ['0.2.1-rc.2', '0.2.1-rc.3', '0.2.1-rc.5', futureVersion, '0.3.0']) assert.equal(hostVerification(host).pluginManagerInstall, true)
   for (const version of ['latest', '*', futureVersion + '\n']) assert.throws(() => hostVerification(version), /exact host/)
   for (const properties of [{ platforms: [] }, { platforms: ['windows-latest'] }, { platforms: ['ubuntu-latest', 'macos-latest'] }, { legacyDirectInstallReason: '' }]) {
     const invalid = { ...policy, supportedHosts: policy.supportedHosts.map((host, i) => i ? host : { ...host, ...properties }) }
