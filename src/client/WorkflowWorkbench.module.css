@@ -265,13 +265,37 @@
 }
 .checkpoint { border-color: var(--wb-border); }
 .checkpoint .drag { color: var(--wb-muted); }
-.node[data-status='in_progress'] { border-top-color: var(--wb-accent); }
 .node[data-lifecycle] { border-top-color: var(--task-state-color); border-left-color: var(--task-state-color); }
-.node[data-status='in_progress'] .nodeBody small { color: var(--wb-accent); background: color-mix(in srgb, var(--wb-accent) 10%, var(--wb-bg)); }
-.node[data-status='completed'] .nodeBody small { color: var(--dsw-alias-state-success-primary); background: color-mix(in srgb, var(--dsw-alias-state-success-primary) 10%, var(--wb-bg)); }
-.node[data-status='failed'] .nodeBody small { color: var(--wb-error); background: color-mix(in srgb, var(--wb-error) 10%, var(--wb-bg)); }
-.node[data-review-ready='true'] .drag, .node[data-review-ready='true'] .nodeBody small { color: var(--dsw-alias-state-warn-primary); }
-.node[data-review-ready='true'] .nodeBody small { background: color-mix(in srgb, var(--dsw-alias-state-warn-primary) 10%, var(--wb-bg)); }
+/* Status colors belong to the displayed lifecycle, so paused or archived work never appears live. */
+.node[data-lifecycle='inProgress'] {
+  background: color-mix(in srgb, var(--wb-accent) 8%, var(--wb-bg));
+  border-color: color-mix(in srgb, var(--wb-accent) 55%, var(--wb-border));
+  border-top-color: var(--wb-accent); border-left-color: var(--wb-accent);
+}
+.node[data-lifecycle='inProgress'] .drag { color: var(--wb-accent); border-bottom-color: color-mix(in srgb, var(--wb-accent) 20%, var(--wb-border)); }
+.workbench[data-live='true'] .node[data-lifecycle='inProgress']::before {
+  content: ''; position: absolute; inset: -1px; border-radius: inherit; pointer-events: none;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--wb-accent) 10%, transparent), 0 4px 18px color-mix(in srgb, var(--wb-accent) 15%, transparent);
+}
+.workbench .node:is([data-lifecycle='completed'], [data-lifecycle='reviewPassed']),
+.workbench .node:is([data-lifecycle='completed'], [data-lifecycle='reviewPassed']) [data-lifecycle] { --task-state-color: var(--wb-muted); }
+.node:is([data-lifecycle='completed'], [data-lifecycle='reviewPassed']) {
+  background: color-mix(in srgb, var(--wb-muted) 6%, var(--wb-bg));
+  border-color: color-mix(in srgb, var(--wb-muted) 22%, var(--wb-border));
+  box-shadow: none;
+}
+.node:is([data-lifecycle='completed'], [data-lifecycle='reviewPassed']) .drag { color: var(--wb-muted); }
+.node:is([data-lifecycle='completed'], [data-lifecycle='reviewPassed']) .nodeBody strong { color: color-mix(in srgb, var(--wb-text) 72%, var(--wb-muted)); }
+.node[data-lifecycle='failed'] {
+  background: color-mix(in srgb, var(--wb-error) 7%, var(--wb-bg));
+  border-color: color-mix(in srgb, var(--wb-error) 48%, var(--wb-border));
+  border-top-color: var(--wb-error); border-left-color: var(--wb-error);
+}
+.node[data-lifecycle='failed'] .drag { color: var(--wb-error); border-bottom-color: color-mix(in srgb, var(--wb-error) 16%, var(--wb-border)); }
+.node[data-review-ready='true'] .drag { color: var(--dsw-alias-state-warn-primary); }
+/* Selection and connection targets stay visible on every status surface. */
+.node[data-member-match='true'] { border-color: var(--wb-accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--wb-accent) 22%, transparent); }
+.node[data-connection='valid'] { box-shadow: 0 0 0 7px color-mix(in srgb, var(--wb-accent) 12%, transparent); }
 
 /* Let the fields scroll independently of their actions at any panel width. */
 form.editor { display: flex; flex-direction: column; padding: 0; }
@@ -291,10 +315,10 @@ form.editor { display: flex; flex-direction: column; padding: 0; }
   color: var(--wb-bg); background: var(--task-state-color); font-weight: 700;
 }
 @media (prefers-reduced-motion: no-preference) {
-  .workbench[data-live='true'] .node[data-lifecycle='inProgress'] .drag svg { animation: runningNode 1.8s ease-in-out infinite; }
+  .workbench[data-live='true'] .node[data-lifecycle='inProgress']::before { animation: runningNode 3s ease-in-out infinite; }
   .workbench[data-live='true'] .node:is([data-lifecycle='reviewReady'], [data-lifecycle='configurationPending'])::after { animation: attentionRing 2.4s ease-out 3; }
 }
-@keyframes runningNode { 50% { opacity: .4; transform: translateX(2px); } }
+@keyframes runningNode { 0%, 100% { opacity: .4; } 50% { opacity: 1; } }
 @keyframes attentionRing { 50% { box-shadow: 0 0 0 5px color-mix(in srgb, var(--task-state-color) 20%, transparent); } }
 
 @media (max-width: 900px) {
