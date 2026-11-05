@@ -34,3 +34,7 @@
 .operation h4 { margin: 0; padding: 9px; background: var(--wb-base); }
 .review[data-generated='true'] .pair { grid-template-columns: minmax(0,1fr); }
 .review[data-generated='true'] textarea { field-sizing: content; }
+
+.issues { padding: 10px; border: 1px solid var(--wb-border); border-left: 3px solid var(--wb-error); border-radius: 6px; background: var(--wb-base); }
+.issues p { margin: 6px 0; }
+.issues button { display: block; max-width: 100%; margin-top: 6px; text-align: left; white-space: normal; }

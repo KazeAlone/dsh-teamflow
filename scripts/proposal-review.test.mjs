@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { lineDiff, reviewedOperations, reviewFields, setReviewField } from '../lib/client/proposal-review.js'
+import { adaptationReviewOperations, lineDiff, proposalIssues, reviewedOperations, reviewFields, setReviewField } from '../lib/client/proposal-review.js'
 const team = { members: [{ name:'worker', summary:'Keep\nOld line', role:'reviewer', executionPrompt:'Read files' }], tasks:[{ id:'t1', subject:'Task', description:'Details', assignee:'worker', dependencies:[] }] }
 
 test('line comparison preserves unchanged lines while marking additions and removals', () => {
@@ -47,4 +47,36 @@ test('rerun approval names the existing task and keeps editable rerun instructio
   const edited=setReviewField(operation,review.fields[0],'Human requirement')
   assert.deepEqual(reviewedOperations(team,[edited],[true]),[{action:'rerun_task',id:'t1',instructions:'Human requirement'}])
   assert.deepEqual(reviewedOperations(team,[edited],[false]),[])
+})
+
+
+test('saved issues stay visible when a proposal omits them and clearing is explicit', () => {
+  const original = {...team, tasks: [{...team.tasks[0], adaptationIssue:'Missing acceptance criteria'}]}
+  const operation = {action:'update_task',id:'t1',description:'New requirements',confirmConfiguration:true}
+  const field = reviewFields(original, operation).fields.find(field=>field.key==='adaptationIssue')
+  assert.equal(field.after,'Missing acceptance criteria')
+  assert.deepEqual(proposalIssues(original,[operation],[true]),[{index:0,issue:'Missing acceptance criteria',blocksApply:true}])
+  const cleared = setReviewField(operation,field,'')
+  assert.deepEqual(proposalIssues(original,[cleared],[true]),[])
+  assert.equal(reviewedOperations(original,[cleared],[true])[0].adaptationIssue,'')
+  assert.equal(original.tasks[0].adaptationIssue,'Missing acceptance criteria')
+})
+
+test('issue navigation preserves item indexes, excludes unchecked items, and follows prior clears', () => {
+  const original={...team,tasks:[...team.tasks,{id:'t2',adaptationIssue:'Need input'}]}
+  const ops=[{action:'update_task',id:'t1',description:'Ready'},{action:'update_task',id:'t2',confirmConfiguration:true}]
+  assert.equal(proposalIssues(original,ops,[true,true])[0].index,1)
+  assert.deepEqual(proposalIssues(original,ops,[true,false]),[])
+  assert.deepEqual(proposalIssues(original,[{action:'update_task',id:'t2',adaptationIssue:''},ops[1]],[true,true]),[])
+  assert.equal(proposalIssues(original,[{action:'update_task',id:'t2',description:'Draft'}],[true])[0].blocksApply,false)
+  assert.equal(proposalIssues(original,[{action:'rerun_task',id:'t2',instructions:'Retry'}],[true])[0].blocksApply,true)
+})
+
+
+test('template approval carries inherited issues and preserves an explicit empty resolution', () => {
+  const source={...team,tasks:[{...team.tasks[0],adaptationIssue:'Need approval'}]}
+  const op={action:'update_task',id:'t1',description:'Requirements',confirmConfiguration:false}
+  assert.equal(adaptationReviewOperations(source,[op])[0].adaptationIssue,'Need approval')
+  assert.equal(adaptationReviewOperations(source,[{...op,adaptationIssue:''}])[0].adaptationIssue,'')
+  assert.equal(op.adaptationIssue,undefined)
 })

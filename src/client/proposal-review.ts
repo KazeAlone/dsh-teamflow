@@ -18,7 +18,7 @@ export function reviewFields(team: TeamState, operation: WorkflowOperation, l: W
   const keys: readonly string[] = operation.action === 'rerun_task' ? [...taskFields.filter(key => key !== 'dependencies' && op[key] !== undefined), 'instructions'] : operation.action === 'rework' ? ['taskIds', 'instructions'] : isMember ? [...(added ? ['name'] : []), ...memberFields] : [...(added && op['id'] ? ['id'] : []), ...taskFields]
   const fields = keys.filter(key => !(key === 'assignee' && operation.action === 'add_task' && operation.checkpoint)).map(key => ({ key, label: l(labels[key] ?? key), before: show(before[key]), after: removed ? '' : show(op[key] === undefined && !added ? before[key] : op[key]), array: ['dependencies', 'taskIds'].includes(key), editable: !removed && key !== 'id' }))
   const name = String(isMember ? op['name'] : op['subject'] ?? before['subject'] ?? op['id'])
-  if('adaptationIssue' in operation && operation.adaptationIssue!==undefined)fields.push({key:'adaptationIssue',label:l("需要确认的问题（处理后清空）"),before:show(before['adaptationIssue']),after:operation.adaptationIssue,array:false,editable:true})
+  if (['add_task', 'update_task', 'rerun_task'].includes(operation.action) && (op['adaptationIssue'] !== undefined || show(before['adaptationIssue']))) fields.push({key:'adaptationIssue',label:l("需要确认的问题（处理后清空）"),before:show(before['adaptationIssue']),after:show(op['adaptationIssue'] ?? before['adaptationIssue']),array:false,editable:true})
   return { title: `${added ? l("新增") : removed ? l("删除") : operation.action === 'rerun_task' ? l("仅重跑") : operation.action === 'rework' ? l("返工") : l("修改")}${isMember ? l("成员") : operation.action === 'add_task' && op['checkpoint'] ? l("人工检查") : l("任务")} · ${name}`, fields:fields.map(f=>f.key==='specificPrompt'?{...f,label:l("本次补充指令")}:f) }
 }
 export function setReviewField(operation: WorkflowOperation, field: ReviewField, value: string): WorkflowOperation {
@@ -49,4 +49,21 @@ export function lineDiff(before: string, after: string): DiffLine[] {
     else result.push({ kind: 'added', text: b[j++]! })
   }
   return result
+}
+
+/** Find unresolved issues in submission order without clearing or confirming them implicitly. */
+export function proposalIssues(team: TeamState, operations: WorkflowOperation[], included: boolean[]) {
+  const issues = new Map(team.tasks.map(task => [task.id, task.adaptationIssue ?? '']))
+  return operations.flatMap((op, index) => {
+    if (!included[index] || !['add_task', 'update_task', 'rerun_task'].includes(op.action)) return []
+    if (op.action !== 'add_task' && op.action !== 'update_task' && op.action !== 'rerun_task') return []
+    const issue = op.adaptationIssue ?? (op.id ? issues.get(op.id) : '') ?? ''
+    if (op.id) issues.set(op.id, issue)
+    return issue.trim() ? [{ index, issue, blocksApply: op.action === 'rerun_task' || op.action === 'update_task' && !!op.confirmConfiguration }] : []
+  })
+}
+
+/** Template approval must carry inherited issues because its server normalization defaults missing values to empty. */
+export function adaptationReviewOperations(team: TeamState, operations: WorkflowOperation[]): WorkflowOperation[] {
+  return operations.map(op => op.action === 'update_task' ? {...op, adaptationIssue: op.adaptationIssue ?? team.tasks.find(task => task.id === op.id)?.adaptationIssue ?? ''} : op)
 }

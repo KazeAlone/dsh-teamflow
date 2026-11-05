@@ -337,3 +337,7 @@ form.editor { display: flex; flex-direction: column; padding: 0; }
 .attention button, .attention select { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .attention button { color: var(--wb-accent); }
 .attention select { flex-shrink: 0; width: 10em; max-width: 35%; }
+
+.adaptationIssue { padding: 10px; margin-block: 12px; border: 1px solid var(--wb-border); border-left: 3px solid var(--wb-error); border-radius: 6px; background: var(--wb-base); }
+.adaptationIssue label { display: flex; flex-direction: column; gap: 5px; }
+.adaptationIssue p { font-size: 12px; line-height: 1.65; }

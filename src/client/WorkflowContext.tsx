@@ -8,7 +8,7 @@ import { taskReadiness } from './task-readiness.ts'
 export function TaskRecord({ task, team, expanded = false, showContract = true }: { task: TeamTask; team: TeamState; expanded?: boolean; showContract?: boolean }) {
   const l = useWorkflowText()
 
-  return <details className={css.contextTask} open={expanded || task.status === 'in_progress'}><summary>{!showContract && l("执行记录 · ")}{task.subject} · {taskReadiness(team,task,l).label}</summary>
+  return <details data-task-record tabIndex={-1} className={css.contextTask} open={expanded || task.status === 'in_progress'}><summary>{!showContract && l("执行记录 · ")}{task.subject} · {taskReadiness(team,task,l).label}</summary>
     {showContract && (<p>{task.description || l("未单独填写任务说明")}</p>)}
     {task.workflowRerunContext && <details><summary>{l("本轮重跑依据")}</summary><p><strong>{l("上一轮结果：")}</strong>{task.workflowRerunContext.previousOutput || l("上一轮未提交结果")}</p><p><strong>{l("本轮新增要求：")}</strong>{task.workflowRerunContext.instructions}</p></details>}
     {task.workflowRerunRequired && <p><strong>{taskReadiness(team,task,l).label}：</strong>{taskReadiness(team,task,l).detail}</p>}

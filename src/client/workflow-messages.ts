@@ -1,5 +1,13 @@
 /** Source-message catalog for workflow UI. Never apply to user-authored content. */
 export const workflowEnglish: Record<string, string> = {
+  '有 {0} 项需要确认的问题': '{0} issues need your confirmation',
+  '请先补充任务要求，再明确标记问题已解决。仅修改任务正文不会自动清除问题。': 'Update the task requirements, then explicitly mark the issue as resolved. Editing the requirements alone does not clear the issue.',
+  '定位问题 · {0}': 'Go to issue · {0}',
+  '应用后仍有问题的任务会保持待配置，不会执行。': 'Tasks with unresolved issues will remain unconfigured and will not run after applying.',
+  '已解决，清除问题': 'Resolved, clear issue',
+  '问题已标记解决，保存后生效。': 'Issue marked as resolved. Save to apply.',
+  '先处理需要确认的问题': 'Resolve the outstanding issue first',
+  '任务「{0}」仍有需要确认的问题：{1}。请补充任务要求，并在问题解决后清除问题说明。': 'Task “{0}” still has an unresolved issue: {1}. Update the requirements and clear the issue after resolving it.',
   '在此窗口内讨论团队与流程，修改方案会显示在这里。': 'Discuss the team and workflow in this window; proposals appear here.',
   '在此窗口内共同检查成果并确认验收决定。': 'Review the results and confirm your decision in this window.',
   '通用草稿已保存，等待生成本次任务': 'General draft saved; instance tasks are still needed',

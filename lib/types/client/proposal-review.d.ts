@@ -21,3 +21,11 @@ export type DiffLine = {
     text: string;
 };
 export declare function lineDiff(before: string, after: string): DiffLine[];
+/** Find unresolved issues in submission order without clearing or confirming them implicitly. */
+export declare function proposalIssues(team: TeamState, operations: WorkflowOperation[], included: boolean[]): {
+    index: number;
+    issue: string;
+    blocksApply: boolean;
+}[];
+/** Template approval must carry inherited issues because its server normalization defaults missing values to empty. */
+export declare function adaptationReviewOperations(team: TeamState, operations: WorkflowOperation[]): WorkflowOperation[];

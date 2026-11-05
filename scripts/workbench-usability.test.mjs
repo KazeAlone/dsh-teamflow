@@ -147,3 +147,13 @@ test('downstream rerun labels explain waiting versus work or review ready for ne
   assert.match(taskReadiness(source,next).detail,/失败/)
   assert.equal(next.workflowPaused,true,'wording changes must not silently resume downstream work')
 })
+
+
+test('configuration errors identify the task and issue, and only explicit resolution allows confirmation', () => {
+  const source=team(); Object.assign(source.tasks[0],{subject:'需要确认验收标准',description:'任务正文',adaptationIssue:'缺少验收阈值',workflowConfigPending:true})
+  const before=structuredClone(source)
+  assert.throws(()=>applyWorkflowOperations(source,[{action:'update_task',id:'t1',description:'补充正文',confirmConfiguration:true}]),/需要确认验收标准.*缺少验收阈值/)
+  assert.deepEqual(source,before)
+  const resolved=applyWorkflowOperations(source,[{action:'update_task',id:'t1',description:'补充正文与验收阈值',adaptationIssue:'',confirmConfiguration:true}])
+  assert.equal(resolved.tasks[0].workflowConfigPending,false)
+})

@@ -91,6 +91,12 @@ if (process.env.TEAMFLOW_PREVIEW_DISCUSSION && !process.env.TEAMFLOW_PREVIEW_ARC
   const key = 'member:researcher'
   workflowState(team).discussions[`discussion:${key}`] = { key, messages: [], calls: [], proposal: proposeWorkflow(team, '调整研究成员职责', [{ action: 'update_member', name: 'researcher', summary: '整理需求并明确每项验收标准。', role: '需求与验收分析师' }]) }
 }
+if (process.env.TEAMFLOW_PREVIEW_ISSUES) {
+  team.tasks.forEach(task => { task.status='pending'; task.attempt=0; delete task.output; task.workflowConfigPending=true; task.description='请根据本次需求补充任务要求。' })
+  team.tasks[2].adaptationIssue='请确认目标平台及验收阈值。'
+  const operations=team.tasks.map(task=>({action:'update_task',id:task.id,description:task.description,confirmConfiguration:!task.adaptationIssue}))
+  workflowState(team).discussions['discussion:adapt']={key:'adapt',messages:[],calls:[],proposal:proposeWorkflow(team,'确认本次任务',operations)}
+}
 let galleryBlank = Boolean(process.env.TEAMFLOW_PREVIEW_GALLERY);
 const sample = templateSeed(team);sample.name='需求到交付';sample.description='从需求分析到实现验证，保留人工验收。';sample.tags=['研发','人工验收'];sample.tasks.forEach(t=>t.general={requirements:'完成'+t.subject+'，依据本次目标确定范围',deliverables:'可复核的工作成果',acceptance:'满足已确认的需求与质量标准'});
 let library=[{...sample,id:'11111111-1111-4111-8111-111111111111',version:1,createdAt:Date.now(),updatedAt:Date.now()}];

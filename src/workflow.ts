@@ -169,7 +169,7 @@ export function applyWorkflowOperations(original: TeamState, operations: Workflo
       if (op.assignee !== undefined) task.assignee = op.assignee || undefined
       if (op.dependencies !== undefined) task.dependencies = op.dependencies
       if (op.confirmConfiguration && task.workflowConfigPending) {
-        if(task.adaptationIssue?.trim())throw new Error('请先处理适配问题，并明确清除问题说明')
+        if(task.adaptationIssue?.trim())throw new Error(`任务「${task.subject}」仍有需要确认的问题：${task.adaptationIssue}。请补充任务要求，并在问题解决后清除问题说明。`)
         if (!task.subject.trim() || !task.description?.trim()) throw new Error(`请填写 ${task.subject} 的名称与任务／验收要求，再完成配置`)
         task.workflowConfigPending = false
         if (team.phase === 'staged') task.workflowPaused = false
@@ -189,7 +189,7 @@ export function applyWorkflowOperations(original: TeamState, operations: Workflo
       if (op.subject !== undefined) original.subject = op.subject
       if (op.description !== undefined) original.description = op.description
       updateDescription(original,op)
-      if(original.adaptationIssue?.trim())throw new Error('请先处理适配问题')
+      if(original.adaptationIssue?.trim())throw new Error(`任务「${original.subject}」仍有需要确认的问题：${original.adaptationIssue}。请补充任务要求，并在问题解决后清除问题说明。`)
       original.workflowConfigPending=false
       if (op.assignee !== undefined) original.assignee = op.assignee || undefined
       const owner = team.members.find(member => member.name === original.assignee && member.status !== 'removed')
