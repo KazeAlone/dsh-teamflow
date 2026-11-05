@@ -4,7 +4,7 @@ English · [简体中文](./README_ZH.md)
 
 This is the [yogurtss/dsh-teamflow](https://github.com/yogurtss/dsh-teamflow) development fork of [NanmiCoder/dsh-agent-teams](https://github.com/NanmiCoder/dsh-agent-teams). Discuss a goal, form an initial team, then adjust member instructions, task handoffs and human checkpoints.
 
-**Install this fork from GitHub or a local build.** Its new package name is `@yogurtss/dsh-teamflow`; this development version is `0.2.6-dev.6`. It is not published to npm. The upstream package is `@nanmicoder/dsh-agent-teams`.
+**Install this fork from GitHub or a local build.** Its new package name is `@yogurtss/dsh-teamflow`; this development version is `0.2.6-dev.7`. It is not published to npm. The upstream package is `@nanmicoder/dsh-agent-teams`.
 
 Click **团队与流程** at the top of the TeamFlow activity panel or team page to open the workbench. The button shows pending changes and human reviews; completed and archived teams also open the full canvas, including task requirements, results and verification records.
 
@@ -31,7 +31,7 @@ The built-in Feature development template v2 has 9 nodes and 4 roles, with paral
 
 Embedded discussions show live reply text with a subtle pulsing TeamFlow logo. Reading earlier messages pauses auto-scroll; View latest reply returns to the bottom.
 
-The development build adds a top-level **Workflow** sidebar entry beside Plugins and Automation. Browse templates and write requirements before choosing a project. Applying a template creates a fresh conversation in the chosen project and opens the canvas with task adaptation. Canceling the project picker or returning to edit preserves the draft. Automatic blank host sessions do not imply a selected project. Choose an existing workspace or use Add workspace to select a folder, with new-folder creation available in native directory pickers. Hosts without a native picker accept a directory path.
+The development build adds a top-level **Workflow** sidebar entry beside Plugins and Automation. Browse templates and write requirements before choosing a project. Applying a template creates a fresh conversation in the chosen project and opens the canvas with task adaptation. Canceling the project picker or returning to edit preserves the draft. Automatic blank host sessions do not imply a selected project. Choose an existing workspace or use Add workspace to select a folder, with new-folder creation available in native directory pickers. Browse-mode hosts provide folder navigation and creation, with optional direct path editing. Existing workspaces use a searchable, scrollable list.
 
 Open **Teamflow → 流程模板库 Gallery** directly from a chat, without a slash command. Browse searchable cards with tags and graph previews, inspect generic requirements, then apply a template to the current goal. Save an existing workflow through an editable AI extraction draft; edit, duplicate, delete, or save a new immutable version.
 
