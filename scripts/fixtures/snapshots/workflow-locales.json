@@ -1,10 +1,10 @@
 {
   "en": {
     "rerun": "The selected task starts a new attempt. Previous status and results remain in execution history. Old verification evidence does not count for this attempt; unrelated branches stay unchanged. These downstream nodes need new results. Choose “Rerun through this node” on any target; human checkpoints still require approval: Review. Prior results and approvals do not count for this attempt.",
-    "discussion": "Loading discussion… Continue discussion Send"
+    "discussion": "Loading discussion… Continue discussion Enter to send · Shift+Enter for a new line Send"
   },
   "zh": {
     "rerun": "所选任务开启新一轮执行，原有状态和提交结果保存在历史执行记录中。旧验证证据不作为本轮证据，无关分支保持不变。 以下下游节点需使用新结果；可选任意节点点击「重跑到此节点」，人工检查仍需确认：Review。此前结果与验收不再用于本轮。",
-    "discussion": "正在读取讨论记录… 继续讨论 发送"
+    "discussion": "正在读取讨论记录… 继续讨论 Enter 发送 · Shift+Enter 换行 发送"
   }
 }

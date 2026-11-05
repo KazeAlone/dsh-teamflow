@@ -1,6 +1,6 @@
 {
   "name": "@yogurtss/dsh-teamflow",
-  "version": "0.2.6-dev.7",
+  "version": "0.2.6-dev.8",
   "description": "DSH TeamFlow: editable agent workflows with native discussions and human approval checkpoints",
   "type": "module",
   "main": "lib/index.js",
