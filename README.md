@@ -4,7 +4,7 @@ English · [简体中文](./README_ZH.md)
 
 This is the [yogurtss/dsh-teamflow](https://github.com/yogurtss/dsh-teamflow) development fork of [NanmiCoder/dsh-agent-teams](https://github.com/NanmiCoder/dsh-agent-teams). Discuss a goal, form an initial team, then adjust member instructions, task handoffs and human checkpoints.
 
-**Install this fork from GitHub or a local build.** Its new package name is `@yogurtss/dsh-teamflow`; this development version is `0.2.6-dev.8`. It is not published to npm. The upstream package is `@nanmicoder/dsh-agent-teams`.
+**Install this fork from GitHub or a local build.** Its new package name is `@yogurtss/dsh-teamflow`; this development version is `0.2.6-dev.9`. It is not published to npm. The upstream package is `@nanmicoder/dsh-agent-teams`.
 
 Click **团队与流程** at the top of the TeamFlow activity panel or team page to open the workbench. The button shows pending changes and human reviews; completed and archived teams also open the full canvas, including task requirements, results and verification records.
 

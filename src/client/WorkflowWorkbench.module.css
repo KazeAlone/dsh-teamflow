@@ -342,11 +342,12 @@ form.editor { display: flex; flex-direction: column; padding: 0; }
 .adaptationIssue label { display: flex; flex-direction: column; gap: 5px; }
 .adaptationIssue p { font-size: 12px; line-height: 1.65; }
 
-.discussionGenerating{display:flex;align-items:center;gap:9px;min-height:36px;padding:4px 12px;color:var(--wb-muted);font-size:12px}
-.discussionLogo{display:inline-flex;animation:discussion-breathe 1.8s ease-in-out infinite}
+.discussionGenerating{display:flex;align-items:center;gap:10px;min-height:36px;padding:5px 10px;border-radius:10px;background:color-mix(in srgb,var(--wb-accent) 7%,transparent);color:var(--wb-accent);font-size:12px;font-weight:500}
+.discussionLogo{display:inline-flex;align-items:center;justify-content:center;flex:none;width:32px;height:32px;border-radius:50%;background:color-mix(in srgb,var(--wb-accent) 10%,transparent);animation:discussion-logo-breathe 1.6s ease-in-out infinite}
 .streamCaret{display:inline-block;width:2px;height:1em;margin-left:3px;background:var(--teamflow-brand,#a333f5);vertical-align:-.12em;animation:discussion-breathe 1.2s ease-in-out infinite}
 .latestReply{display:block;margin:4px auto 8px;font-size:12px;color:var(--wb-accent)}
 @keyframes discussion-breathe{0%,100%{opacity:.4}50%{opacity:1}}
+@keyframes discussion-logo-breathe{0%,100%{opacity:.55;transform:scale(.94);box-shadow:0 0 0 0 color-mix(in srgb,var(--wb-accent) 0%,transparent)}50%{opacity:1;transform:scale(1.06);box-shadow:0 0 0 5px color-mix(in srgb,var(--wb-accent) 12%,transparent)}}
 @media(prefers-reduced-motion:reduce){.discussionLogo,.streamCaret{animation:none}}
 
 .messages:has(>.embeddedChat){display:flex;flex-direction:column;gap:6px;min-height:0}
@@ -360,6 +361,6 @@ form.editor { display: flex; flex-direction: column; padding: 0; }
 .messages:has(>.embeddedChat)>:not(.embeddedChat){flex:none}
 .messages>.embeddedChat>.embeddedTranscript{max-height:none}
 
-.discussionStatus{display:flex;align-items:center;justify-content:space-between;gap:6px;flex:none;min-height:36px}
+.discussionStatus{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px;flex:none;min-height:36px;margin-top:6px}
 .discussionStatus>.latestReply{margin:0 0 0 auto;flex:none}
 .messages:has(>.embeddedChat)>.hint{display:none}

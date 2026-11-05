@@ -82,10 +82,10 @@ function Discussion({ sessionId, teamId, discussion }: { sessionId: string; team
   }
   const generating = !error && (sending || chat.busy)
   return <div className={css.embeddedChat}>
-    {(generating||unread)&&<div className={css.discussionStatus}>{generating && <div className={css.discussionGenerating} role="status"><span className={css.discussionLogo}><BrandIcon size={22}/></span><span>{tail?.streaming ? l("正在回复…") : l("AI 正在思考…")}</span></div>}{unread&&<button type="button" className={css.latestReply} onClick={latest}>{l("查看最新回复")} ↓</button>}</div>}
     <div ref={transcript} tabIndex={0} className={css.embeddedTranscript} aria-busy={generating} onScroll={()=>{const el=transcript.current;if(el){followBottom.current=el.scrollHeight-el.scrollTop-el.clientHeight<48;if(followBottom.current)setUnread(false)}}} aria-label={l("独立讨论记录")}>{chat.messages.map(message => <div key={message.id} data-streaming={!!message.streaming && generating} className={message.role === 'user' ? css.userMessage : css.assistantMessage}><strong>{message.role === 'user' ? l("你") : 'AI'}</strong><p>{message.text}{message.streaming&&generating&&<span className={css.streamCaret} aria-hidden="true"/>}</p></div>)}
       {loading && <p role="status">{l("正在读取讨论记录…")}</p>}{error && <p role="alert" className={css.error}>{workflowMessage(error, l)}</p>}
     </div>
+    {(generating||unread)&&<div className={css.discussionStatus}>{generating && <div className={css.discussionGenerating} role="status"><span className={css.discussionLogo} aria-hidden="true"><BrandIcon size={26}/></span><span>{tail?.streaming ? l("正在回复…") : l("AI 正在思考…")}</span></div>}{unread&&<button type="button" className={css.latestReply} onClick={latest}>{l("查看最新回复")} ↓</button>}</div>}
     <form className={css.embeddedComposer} onSubmit={event => { event.preventDefault(); void send() }}><label>{l("继续讨论")}<textarea value={text} onChange={event => changeText(event.target.value)}
       onCompositionStart={() => { composingRef.current = true }} onCompositionEnd={() => { composingRef.current = false }}
       onKeyDown={event => {
