@@ -1,5 +1,8 @@
 /** Source-message catalog for workflow UI. Never apply to user-authored content. */
 export const workflowEnglish: Record<string, string> = {
+  "返回修改需求": "Back to requirements",
+  "流程正在创建，请稍候": "The workflow is being created. Please wait.",
+  "新对话已有其他流程，请返回模板库后重试": "The new conversation already has another workflow. Return to the gallery and try again.",
   '有 {0} 项需要确认的问题': '{0} issues need your confirmation',
   '请先补充任务要求，再明确标记问题已解决。仅修改任务正文不会自动清除问题。': 'Update the task requirements, then explicitly mark the issue as resolved. Editing the requirements alone does not clear the issue.',
   '定位问题 · {0}': 'Go to issue · {0}',
@@ -741,4 +744,21 @@ Object.assign(workflowEnglish, {
  '路径节点状态已变化，请刷新：{0}':'A path node changed state; refresh: {0}',
  '请先启动路径中手动暂停的节点：{0}':'Start the manually paused path node first: {0}',
  '路径节点缺少执行成员：{0}':'No execution member is available for this path node: {0}'
+})
+
+Object.assign(workflowEnglish, {
+ '先选择模板、填写需求，再选择工作区。':'Choose a template and describe your goal, then select a workspace.',
+ '当前工作区 · {0}':'Current workspace · {0}',
+ '选择流程工作区':'Select workflow workspace',
+ '选择工作区':'Select workspace',
+ '模板和需求已保留。选择工作区后，将在其中的新对话中创建流程。':'Your template and requirements are saved. Select a workspace to create the workflow in a new conversation.',
+ '已有工作区':'Existing workspaces',
+ '正在读取工作区…':'Loading workspaces…',
+ '工作区列表读取失败，仍可添加工作区。':'Could not load workspaces. You can still add one.',
+ '正在准备工作区与流程…':'Preparing workspace and workflow…',
+ '添加工作区':'Add workspace',
+ '可选择已有文件夹；需要新目录时，可在文件夹选择器中新建。':'Choose an existing folder, or create a new folder in the directory picker.',
+ '工作区文件夹':'Workspace folder',
+ '输入工作区所在机器上的完整文件夹路径':'Enter the full folder path on the workspace host',
+ '添加并继续':'Add and continue'
 })

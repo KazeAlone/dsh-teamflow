@@ -1,0 +1,23 @@
+.launcher {
+  --wb-bg:var(--dsw-alias-bg-layer-1,light-dark(#fff,#24272c));
+  --wb-base:var(--dsw-alias-bg-base,light-dark(#f6f7f9,#181a1e));
+  --wb-text:var(--dsw-alias-label-primary,light-dark(#26303d,#e3e6ec));
+  --wb-muted:var(--dsw-alias-label-secondary,light-dark(#737d8b,#a0a8b5));
+  --wb-border:var(--dsw-alias-border-l2,light-dark(#e1e5eb,#363940));
+  --wb-accent:var(--dsw-alias-state-business-primary,light-dark(#2866d7,#82b4ff));
+  --wb-error:var(--dsw-alias-state-error-primary,light-dark(#b94444,#ef9797));
+  height:100%;min-height:0;overflow:auto;background:var(--wb-base);color:var(--wb-text);font-size:14px;
+}
+.header {display:flex;align-items:center;gap:12px;padding:20px 32px;background:var(--wb-bg);border-bottom:1px solid var(--wb-border)}
+.header h1{font-size:20px;margin:0}.header p{margin:4px 0 0;color:var(--wb-muted);font-size:12px}.header>span{margin-left:auto;font-size:12px;color:var(--wb-muted)}
+.gallery{min-height:0}.gallery[hidden]{display:none}
+.choose{max-width:760px;padding:28px;margin:auto;overflow-wrap:anywhere}.choose h2{font-size:24px}.choose p{line-height:1.7}
+.choose button,.choose input{font:inherit;color:inherit;border:1px solid var(--wb-border);border-radius:8px;padding:9px 12px;background:var(--wb-bg)}
+.choose button{cursor:pointer}.choose button:disabled{opacity:.5;cursor:not-allowed}.choose :is(button,input):focus-visible{outline:2px solid var(--wb-accent);outline-offset:2px}
+.summary{padding:16px;border:1px solid var(--wb-border);border-radius:12px;background:var(--wb-bg)}.summary p{white-space:pre-wrap;max-height:160px;overflow:auto;margin-bottom:0}
+.projects{margin-block:24px}.projects>button{display:flex;flex-direction:column;gap:4px;text-align:left;width:100%;margin-top:8px}.projects small{color:var(--wb-muted);overflow-wrap:anywhere}
+.choose label{display:flex;flex-direction:column;gap:8px;margin:16px 0}
+.choose .primary{background:var(--wb-accent);color:var(--wb-bg);border-color:var(--wb-accent)}.error{margin:16px 28px;color:var(--wb-error);white-space:pre-wrap;overflow-wrap:anywhere}
+@media(max-width:700px){.header{padding:16px;flex-wrap:wrap}.header>span{margin:0}.choose{padding:20px}}
+
+.hint{color:var(--wb-muted);font-size:12px}

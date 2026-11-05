@@ -19,6 +19,11 @@ import type { UsePanelInfo } from '@deepseek-ai/dsh-client-ui-layout/client'
 // provider/model/effort metadata without mutating the captain's own selection.
 import type {} from '@deepseek-ai/dsh-client-ui-model-selection/client'
 import type {} from '@deepseek-ai/dsh-client-ui-sidebar-right/client'
+import type {} from '@deepseek-ai/dsh-client-ui-sidebar/client'
+import type {} from '@deepseek-ai/dsh-client-ui-workspace/client'
+import type {} from '@deepseek-ai/dsh-api-workspace-controller/client'
+import { WorkflowLauncher } from './WorkflowLauncher.tsx'
+import { BrandIcon } from './BrandIcon.tsx'
 import { ActivitySurface, WorkspaceActivity, createWorkspaceBridge, TEAM_TAB_ID, TEAM_TAB_KIND } from './WorkspaceActivity.tsx'
 import { BlankSessionTeamflowEntry } from './BlankSessionTeamflowEntry.tsx'
 import { TeamChatEntry, TeamTurnCard } from './TeamChatEntry.tsx'
@@ -97,6 +102,17 @@ export function apply(ctx: ClientContext): void {
     </>
     )
   }
+  // A root panel has no Session binding: browsing templates precedes choosing a workspace.
+  ctx.inject(['workspaces', 'uiWorkspace', 'remote.session'], native => {
+    if (typeof native.sessions.retain !== 'function' || typeof native.sessions.create !== 'function' || !native.workspaces.list || typeof native.uiWorkspace.pickDirectory !== 'function') return
+    native.slots.inject('main', () => native.slots.register({
+      name:'main',key:'dsh-teamflow-workflow',locale:AGENT_TEAMS_LOCALE_NAMESPACE,
+      inject:()=>({sessions:native.sessions,workspaces:native.workspaces,uiWorkspace:native.uiWorkspace,modelDirectories:native.modelDirectories,openMember}),
+    }, WorkflowLauncher))
+    native.slots.inject('sidebar.panellist', () => native.slots.register({
+      name:'sidebar.panellist',id:'dsh-teamflow-workflow',order:30,label:'Workflow',
+    }, ({size}) => <BrandIcon size={size}/>))
+  })
   // A conversation entry does not depend on the optional right sidebar.
   ctx.slots.inject('conversation.session.header.actions', () => ctx.slots.register({
     name: 'conversation.session.header.actions', id: 'agent-teams-entry', order: 50,

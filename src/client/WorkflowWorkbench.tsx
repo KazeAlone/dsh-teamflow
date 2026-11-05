@@ -57,7 +57,8 @@ function ReviewMaterials({ text }: { text: string }) {
   } catch { return <pre>{text}</pre> }
 }
 
-function Workbench({ sessionId, teamId, archived = false, waitingCount = 0, openExecution, nativeOnly = false, reviewEntryOnly = false, embeddedContext = false, onNativeContext, openContext, modelDirectory, t, entryTarget, initiallyOpen = false, onShowActivity, onClose }: {
+function Workbench({ sessionId, teamId, archived = false, waitingCount = 0, openExecution, nativeOnly = false, reviewEntryOnly = false, embeddedContext = false, onNativeContext, openContext, modelDirectory, t, entryTarget, entryDiscussion, initiallyOpen = false, onShowActivity, onClose }: {
+  entryDiscussion?: string
   initiallyOpen?: boolean
   onShowActivity?: () => void
   entryTarget?: { taskId: string; review?: boolean; rerun?: boolean }
@@ -180,6 +181,11 @@ function Workbench({ sessionId, teamId, archived = false, waitingCount = 0, open
     if (entryTarget.rerun && !archiveView && !team.halted && team.phase !== 'staged' && !task.checkpoint && ['completed','failed','cancelled'].includes(task.status)) setEditing(true)
     if (entryTarget.review && data?.ready.includes(task.id)) void openReview(task.id)
   }, [team,entryTarget])
+  useEffect(() => {
+    if (!entryDiscussion || entryOpened.current || !team) return
+    entryOpened.current = true
+    void startEmbedded(entryDiscussion)
+  }, [entryDiscussion, team])
   function updateView(update: (current: WorkbenchView) => WorkbenchView): void { const next = update(viewRef.current); viewRef.current = next; setView(next) }
   function choose(target: WorkbenchTarget, overrides?: Record<string,string>): void {
     updateView(current => selectWorkbench(current, target, team, overrides)); setError(''); setFeedback('')

@@ -124,3 +124,19 @@ test('feature template v2 preserves classic v1 and leaves other built-ins unchan
  assert.equal(getBuiltinTemplate('builtin-feature').tasks.length,9)
  for(const id of ['builtin-bugfix','builtin-operator'])assert.deepEqual(getBuiltinTemplate(id),previous.find(item=>item.id===id))
 })
+
+
+test('authenticated global library works without a session but execution still requires one',async t=>{
+ const root=await mkdtemp(join(tmpdir(),'global-gallery-'));t.after(()=>rm(root,{recursive:true,force:true}))
+ const {authenticatedWebRoutes}=await import('../lib/web-routes.js')
+ let route,rejection,pickerKind;const ctx={get:()=>({capability:()=>({kind:pickerKind})}),effect:fn=>fn(),agents:{get:()=>undefined}}
+ installWorkflowWorkbench(ctx,{stateDir:'.agent-teams',templateDirectory:root,maxMembers:8},{},authenticatedWebRoutes({register(value){route=value;return()=>{}}},()=>({requestRejection:()=>rejection})))
+ const request=async body=>{let status,result;const req=Readable.from([JSON.stringify(body)]);req.method='POST';req.headers={};await route.handler(req,{writeHead:code=>status=code,end:value=>result=JSON.parse(value)});return{status,...result}}
+ rejection=401;assert.equal((await request({action:'template_list'})).status,401)
+ assert.equal((await request({action:'launcher_context'})).status,401)
+ rejection=undefined;for(const kind of ['native','browse','other']){pickerKind=kind;assert.equal((await request({action:'launcher_context'})).directoryPicker,kind==='other'?'unavailable':kind)}
+ const listed=await request({action:'template_list'});assert.equal(listed.status,200);assert.ok(listed.templates.length>=3);assert.equal(listed.context,'')
+ const saved=await request({action:'template_save',definition:definition()});assert.equal(saved.status,200)
+ assert.equal((await request({action:'template_apply',templateId:saved.template.id,version:1,name:'Flow',description:'Goal'})).status,409)
+ assert.equal((await request({action:'template_delete',templateId:saved.template.id,version:1})).status,200)
+})
