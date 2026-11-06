@@ -548,6 +548,7 @@ function Workbench({ sessionId, teamId, archived = false, waitingCount = 0, open
   const adaptation = pendingProposals.find(item => item.key === 'adapt' && item.proposal?.base === data?.base)?.proposal
   const proposedTasks = new Set(adaptation?.operations.flatMap(op => op.action === 'update_task' ? [op.id] : []))
   const attention = [
+    ...(archiveView ? [] : team?.tasks.filter(task=>task.checkpoint?.decision==='reject')??[]).map(task=>({key:'rejected:'+task.id,label:l('安排返工 · {0}',task.subject),open:()=>void openReview(task.id)})),
     ...pendingProposals.map(item => ({
       key: 'proposal:' + item.key, label: l("确认方案 · {0}", item.proposal!.title), open: () => openProposal(item.key),
     })),
@@ -721,6 +722,9 @@ function Workbench({ sessionId, teamId, archived = false, waitingCount = 0, open
           </aside>}
 
         {reviewingCheckpoint && reviewTask && <ReviewWorkbench key={`${team.id}:${reviewTask.id}:${reviewTask.checkpoint?.round}`} team={team} task={reviewTask} conversation={conversation} ready={data.ready.includes(reviewTask.id)} archived={archiveView} busy={working} note={note} onNote={setNote}
+          onReopen={()=>void perform('reopen_review',{taskId:reviewTask.id,base:data.base})}
+          onRerun={async (taskId,instructions)=>!!(await saveEdit([{action:'rerun_task',id:taskId,instructions}],l('安排验收返工')))}
+          reworkBlocked={unsaved.length?l('请先保存属性草稿'):undefined} continuation={renderRerunPath(reviewTask)}
           onBack={() => locateTask(reviewTask.id)} onRefresh={() => void perform('materials', { discussion })}
           onDecision={async (decision, evidence, submittedNote) => {
             const scope = reviewScope

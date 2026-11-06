@@ -1267,3 +1267,39 @@ test('outcome preview reads only declared files without dispatching or changing 
   source.captainSessionId='someone-else';await f.save(source);
   assert.equal((await f.call('outcome_preview',{taskId:'t1',path:'report.md'})).code,409);
 });
+
+
+test('returned review can reopen with fresh evidence, then approve without losing rejection or starting work early',async t=>{
+ const source=withGate();source.tasks[0].status='completed';source.tasks[0].output='Original result';
+ const f=await lifecycleFixture(t,source);let state=await f.call('materials',{discussion:'check:gate'});
+ const oldEvidence=state.team.workflow.discussions['discussion:check:gate'].evidence;
+ state=await f.call('review',{taskId:'gate',decision:'reject',evidence:oldEvidence,note:'Check again'});
+ const rejected=structuredClone(state.team.tasks.find(t=>t.id==='gate').checkpoint.history);
+ assert.equal((await f.call('reopen_review',{taskId:'gate',base:'stale'})).code,409);
+ assert.equal((await f.call('reopen_review',{taskId:'gate',base:state.base,sessionId:'outsider'})).code,409);
+ state=await f.call('reopen_review',{taskId:'gate',base:state.base});assert.equal(state.code,200,state.error);
+ const gate=state.team.tasks.find(t=>t.id==='gate');assert.equal(gate.checkpoint.round,2);assert.equal(gate.checkpoint.decision,undefined);assert.deepEqual(gate.checkpoint.history,rejected);
+ assert.equal(f.dispatched.length,0);assert.equal(state.team.tasks[0].output,'Original result');
+ assert.equal((await f.call('review',{taskId:'gate',decision:'approve',evidence:oldEvidence})).code,409);
+ assert.equal((await f.call('reopen_review',{taskId:'gate',base:state.base})).code,409);
+ state=await f.call('review',{taskId:'gate',decision:'approve',evidence:state.team.workflow.discussions['discussion:check:gate'].evidence,note:'Rechecked'});
+ assert.equal(state.code,200,state.error);assert.equal(state.team.tasks.find(t=>t.id==='gate').checkpoint.history.length,2);
+ assert.equal(f.dispatched.length,1);
+});
+
+test('returned review repair reruns source, then resumes gate path without releasing sibling branches',async t=>{
+ const source=withGate();source.tasks[0].status='completed';source.tasks[0].output='Needs repair';source.tasks.push({...task('sibling',['t1']),status:'completed',output:'Old sibling result'});
+ const f=await lifecycleFixture(t,source);let state=await f.call('materials',{discussion:'check:gate'});
+ state=await f.call('review',{taskId:'gate',decision:'reject',evidence:state.team.workflow.discussions['discussion:check:gate'].evidence,note:'Fix encoding'});
+ state=await f.call('edit',{base:state.base,title:'Repair',operations:[{action:'rerun_task',id:'t1',instructions:'Fix encoding'}]});
+ assert.equal(state.code,200,state.error);assert.equal(f.dispatched.length,1);assert.equal(state.team.tasks[0].workflowRerunContext.instructions,'Fix encoding');
+ assert.equal(state.team.tasks.find(t=>t.id==='gate').checkpoint.history[0].decision,'reject');
+ state=await f.call('resume_rerun_path',{taskId:'gate',base:state.base});assert.equal(state.code,200,state.error);
+ assert.equal(state.team.tasks.find(t=>t.id==='gate').workflowPaused,false);assert.equal(state.team.tasks.find(t=>t.id==='sibling').workflowPaused,true);
+ assert.equal(state.team.tasks.find(t=>t.id==='after').workflowPaused,true);assert.equal(state.ready.includes('gate'),false);
+ const completed=await f.read();completed.tasks[0].status='completed';completed.tasks[0].output='Repaired';await f.save(completed);
+ state=await f.call('materials',{discussion:'check:gate'});assert.equal(state.code,200,state.error);
+ assert.equal(state.team.tasks.find(t=>t.id==='gate').checkpoint.decision,undefined);
+ state=await f.call('review',{taskId:'gate',decision:'approve',evidence:state.team.workflow.discussions['discussion:check:gate'].evidence});assert.equal(state.code,200,state.error);
+ assert.equal(state.team.tasks.find(t=>t.id==='after').workflowPaused,true);
+});

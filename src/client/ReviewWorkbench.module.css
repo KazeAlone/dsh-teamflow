@@ -22,3 +22,6 @@
 .notice,.confirmation { padding:12px; margin:12px 18px; border-radius:8px; background:color-mix(in srgb,var(--wb-accent) 8%,var(--wb-base)); font-size:12px; }.decision .notice,.confirmation { margin:12px 0; }.confirmation p { margin:8px 0 12px; }
 @container (max-width:560px) { .body { grid-template-columns:1fr; }.criteria { border-right:0; border-bottom:1px solid var(--wb-border); }.compare { grid-template-columns:1fr; }.evidence { padding:14px; } }
 @media (max-width:600px) { .body,.compare { grid-template-columns:1fr; }.criteria { border-right:0; border-bottom:1px solid var(--wb-border); }.status label { flex-wrap:wrap; }.decision textarea { font-size:16px; } }
+
+.decision select { display:block; max-width:100%; margin:6px 0 12px; padding:8px; font:inherit; color:var(--wb-text); background:var(--wb-base); border:1px solid var(--wb-border); border-radius:6px; }
+.decision .actions { margin-top:12px; }

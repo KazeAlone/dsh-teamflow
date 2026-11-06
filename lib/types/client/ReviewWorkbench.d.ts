@@ -1,7 +1,7 @@
 import { type ReactNode } from 'react';
 import type { TeamState, TeamTask } from '../types.ts';
 import type { WorkflowDiscussion } from '../workflow-types.ts';
-export declare function ReviewWorkbench({ team, task, conversation, ready, archived, busy, note, onNote, onRefresh, onDecision, onDiscuss, onRestart, discussionBusy, discussion, proposal, onBack }: {
+export declare function ReviewWorkbench({ team, task, conversation, ready, archived, busy, note, onNote, onRefresh, onDecision, onDiscuss, onRestart, discussionBusy, discussion, proposal, onBack, onRerun, onReopen, continuation, reworkBlocked }: {
     team: TeamState;
     task: TeamTask;
     conversation?: WorkflowDiscussion;
@@ -18,4 +18,8 @@ export declare function ReviewWorkbench({ team, task, conversation, ready, archi
     onBack: () => void;
     onRestart?: () => void;
     discussionBusy?: boolean;
+    onReopen?: () => void;
+    onRerun?: (taskId: string, instructions: string) => Promise<boolean>;
+    continuation?: ReactNode;
+    reworkBlocked?: string;
 }): import("react").JSX.Element;

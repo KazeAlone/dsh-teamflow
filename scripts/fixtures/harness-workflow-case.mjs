@@ -81,6 +81,13 @@ export async function exerciseWorkflow({ baseUrl, cookie, captain, readTeam, rec
   assert.equal(result.team.tasks.find(t => t.id === 'g2').status, 'pending');
   assert.equal(result.team.tasks.find(t => t.id === 'g2').checkpoint.decision, 'reject');
   assert.deepEqual(result.ready, []);
+  const rejection=result.team.tasks.find(t=>t.id==='g2').checkpoint.history.at(-1);
+  result=await post('reopen_review',{taskId:'g2',base:result.base});
+  assert.equal(result.team.tasks.find(t=>t.id==='g2').checkpoint.round,2);
+  assert.deepEqual(result.team.tasks.find(t=>t.id==='g2').checkpoint.history.at(-1),rejection);
+  result=await post('review',{taskId:'g2',decision:'approve',evidence:result.team.workflow.discussions['discussion:check:g2'].evidence,note:'重新核对通过'});
+  assert.equal(result.team.tasks.find(t=>t.id==='g2').status,'completed');
+  record({event:'returned-review-reopened',historyRetained:true,humanApproval:true});
   const manual = await ctx.agents.create({ sessionId: 'session-workflow-' + Date.now(), meta: { cwd: process.cwd() }, agentOptions: { provider: 'runtime-lab', model: 'manual-fixture' } });
   ctx.effect(() => () => manual.dispose());
   await manual.agent.whenIdle(); activeSession = manual.agent.id; activeTeam = '';

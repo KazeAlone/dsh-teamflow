@@ -197,7 +197,7 @@ createServer(async (req, res) => {
       task.workflowPaused=stopping;task.workflowAwaitingStart=false;task.updatedAt=Date.now();
     }
     // Explicit fixture mode: simulate successful work; never calls a real model.
-    if (process.env.TEAMFLOW_PREVIEW_RERUN) for(const task of team.tasks) if(task.status==='pending' && !task.checkpoint && !task.workflowPaused && task.dependencies.every(id=>team.tasks.find(item=>item.id===id)?.status==='completed')) {task.status='completed';task.attempt=(task.attempt??0)+1;task.output='模拟重跑结果：已按最新要求重新执行。'}
+    if (process.env.TEAMFLOW_PREVIEW_RERUN || process.env.TEAMFLOW_PREVIEW_REPAIR) for(const task of team.tasks) if(task.status==='pending' && !task.checkpoint && !task.workflowPaused && task.dependencies.every(id=>team.tasks.find(item=>item.id===id)?.status==='completed')) {task.status='completed';task.attempt=(task.attempt??0)+1;task.output='模拟重跑结果：已按最新要求重新执行。'}
     if (body.action === 'dismiss' && discussion.proposal) discussion.proposal.status = 'dismissed';
     if (body.action === 'layout') for (const [id, point] of Object.entries(body.positions ?? { [body.taskId]: { x: body.x, y: body.y } })) state.positions[`task:${id}`] = point;
     if (body.action === 'start') team.phase = 'running';
@@ -212,6 +212,12 @@ createServer(async (req, res) => {
       if(key==='adapt')discussion.proposal=proposeWorkflow(team,'统一本次任务',team.tasks.map(t=>({action:'update_task',id:t.id,description:'算子 B：'+t.subject+'。交付算子 B 的成果，通过本次验证。',adaptationIssue:'',confirmConfiguration:true})));
       if(key==='template')discussion.templateDraft={base:workflowFingerprint(team),definition:{...sample,name:'可复用研发流程'}};
       discussion.native = { sessionId: `session-at-discussion-preview-${key}`, label: key };
+    }
+    if(body.action==='reopen_review'){
+      if(body.base!==workflowFingerprint(team))throw Error('团队已变化');const task=team.tasks.find(t=>t.id===body.taskId);
+      if(task?.checkpoint?.decision!=='reject')throw Error('只能重新验收已退回的检查点');
+      task.checkpoint={round:task.checkpoint.round+1,history:task.checkpoint.history};
+      const d=state.discussions['discussion:check:'+task.id]??={key:'check:'+task.id,messages:[],calls:[]};const m=workflowMaterials(team,task.id,process.cwd());d.materials=m.text;d.evidence=m.evidence;d.materialsRound=task.checkpoint.round;
     }
     if (body.action === 'review') { const material=workflowMaterials(team, body.taskId, process.cwd()); decideCheckpoint(team, body.taskId, body.decision, body.evidence, material.evidence, body.note || '', material.text); }
     send(res, 200, { team, base: workflowFingerprint(team), ...(['set_flow_enabled','restore_archive','review','set_task_enabled','state','create','template_apply','open_discussion','edit','apply','resume_rerun_path','resume_task','stop_task','start'].includes(body.action)?{activity:await assembleTeamSnapshot({agents:{get(){}}},resolve('node_modules/workflow-preview-state'),'测试',team)}:{}), ready: body.action === 'archive_state' ? [] : team.tasks.filter(t => checkpointReady(team, t) && !t.checkpoint.decision).map(t => t.id), busy: [], ...(process.env.TEAMFLOW_PREVIEW_ACTIVITY_DISCUSSION ? {currentDiscussion:'adapt'} : process.env.TEAMFLOW_PREVIEW_DISCUSSION ? { currentDiscussion: 'member:researcher' } : {}), ...(body.action === 'open_discussion' ? { openedSessionId: discussion.native.sessionId } : {}) });

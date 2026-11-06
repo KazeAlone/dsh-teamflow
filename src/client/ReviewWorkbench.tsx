@@ -4,16 +4,19 @@ import type { WorkflowDiscussion } from '../workflow-types.ts'
 import { useWorkflowText } from './workflow-i18n.tsx'
 import { workflowMessage } from './workflow-text.ts'
 import { parseReviewMaterial, reviewChanges, reviewItems, type ReviewResult } from './review-evidence.ts'
+import { rerunPath, rerunImpact } from '../task-rerun.ts'
 import { taskReadiness } from './task-readiness.ts'
 import { WorkflowIcon } from './icons.tsx'
 import css from './ReviewWorkbench.module.css'
 
-export function ReviewWorkbench({ team, task, conversation, ready, archived, busy, note, onNote, onRefresh, onDecision, onDiscuss, onRestart, discussionBusy = false, discussion, proposal, onBack }: {
+export function ReviewWorkbench({ team, task, conversation, ready, archived, busy, note, onNote, onRefresh, onDecision, onDiscuss, onRestart, discussionBusy = false, discussion, proposal, onBack, onRerun, onReopen, continuation, reworkBlocked }: {
   team: TeamState; task: TeamTask; conversation?: WorkflowDiscussion; ready: boolean; archived: boolean; busy: boolean
   note: string; onNote: (value: string) => void; onRefresh: () => void
   onDecision: (decision: 'approve' | 'reject', evidence: string, note: string) => Promise<boolean>
   onDiscuss: () => void; discussion?: ReactNode; proposal?: ReactNode; onBack: () => void
   onRestart?: () => void; discussionBusy?: boolean
+  onReopen?: () => void
+  onRerun?: (taskId: string, instructions: string) => Promise<boolean>; continuation?: ReactNode; reworkBlocked?: string
 }) {
   const l = useWorkflowText(), checkpoint = task.checkpoint!
   const [round, setRound] = useState('current')
@@ -22,6 +25,8 @@ export function ReviewWorkbench({ team, task, conversation, ready, archived, bus
   const [confirm, setConfirm] = useState<{ evidence: string; round: number }>()
   const [error, setError] = useState('')
   const submitting = useRef(false)
+  const panel = useRef<HTMLElement>(null)
+  useEffect(()=>{if(checkpoint.decision==='reject'||task.workflowRerunRequired)panel.current?.scrollTo({top:0})},[checkpoint.decision,task.workflowRerunRequired])
   const history = checkpoint.history ?? []
   const historical = round !== 'current'
   const entry = historical ? history[Number(round)] : [...history].reverse().find(h => h.round === checkpoint.round && h.decision === checkpoint.decision)
@@ -53,10 +58,12 @@ export function ReviewWorkbench({ team, task, conversation, ready, archived, bus
     {result.commandsRun.length > 0 && <details><summary>{l('命令记录')} · {result.commandsRun.length}</summary>{result.commandsRun.map((r, i) => <div key={i} className={css.report}><span>{r.status === 'passed' ? l('报告通过') : l('报告失败')}</span><code>{r.command}</code>{r.exitCode !== undefined && <small>{l('退出码')} · {r.exitCode}</small>}<p>{r.evidence || l('未提交证据说明')}</p></div>)}</details>}
     {result.acceptanceResults.length > 0 && <details><summary>{l('上游提交条目')} · {result.acceptanceResults.length}</summary>{result.acceptanceResults.map((r, i) => <p key={i}>{r.criterion} · {r.status === 'passed' ? l('报告通过') : l('报告失败')}{'\n'}{r.evidence || l('未提交证据说明')}</p>)}</details>}
   </section>
-  return <aside className={css.workbench} aria-label={l('验收工作台')} data-review-workbench>
+  return <aside ref={panel} className={css.workbench} aria-label={l('验收工作台')} data-review-workbench>
     <header className={css.header}><div><small>{l('人工检查点')} · {l('第 {0} 轮', checkpoint.round)}</small><h3 data-review-heading tabIndex={-1}>{task.subject}</h3></div><button type="button" onClick={onBack}>{l('返回节点')}</button></header>
     <div className={css.status}><span>{checkpoint.decision === 'approve' ? l('已通过') : checkpoint.decision === 'reject' ? l('已退回') : ready ? l('等待人工决定') : taskReadiness(team, task, l).label}</span><label>{l('验收轮次')}<select aria-label={l('验收轮次')} value={round} onChange={e => changeRound(e.target.value)}><option value="current">{l('当前轮次')} · {checkpoint.round}</option>{history.map((h, i) => <option key={i} value={String(i)}>{l('第 {0} 轮', h.round)} · {h.decision === 'approve' ? l('通过') : l('退回')}</option>)}</select></label></div>
     <p className={css.hint}>{l('提交记录不等于人工验收通过；没有证据的内容不视为已验证。')}</p>
+    {!historical && !archived && continuation}
+    {!historical && checkpoint.decision === 'reject' && (archived ? <p className={css.notice}>{l('恢复并编辑流程后可安排返工。')}</p> : <RejectedReview team={team} task={task} busy={busy} blocked={reworkBlocked} onRerun={onRerun} onReopen={onReopen} onBack={onBack} onDiscuss={onDiscuss}/>)}
     <div className={css.body}>
       <nav className={css.criteria} aria-label={l('要求与提交条目')}><strong>{l('要求与提交条目')}</strong><button aria-pressed={selected === 'overview'} onClick={() => setSelected('overview')}><WorkflowIcon name="review" />{l('验收要求与全部证据')}</button>{items.map(i => <button key={i.id} aria-pressed={selected === i.id} onClick={() => setSelected(i.id)}><span>{i.reports.some(r => r.status === 'failed') ? '!' : i.reports.some(r => r.evidence?.trim()) ? '↳' : '?'}</span><span>{i.title}<small>{i.kind === 'report' ? l('上游报告 · {0}', i.source ?? '') : i.reports.some(r => r.evidence?.trim()) ? l('已关联同名提交记录') : l('未关联证据')}</small></span></button>)}{!items.length && <p className={css.hint}>{l('未提供结构化验收条目，请按完整要求核对全部证据。')}</p>}</nav>
       <section className={css.evidence} aria-live="polite"><h4>{item?.title ?? l('验收要求')}</h4>{!item && <p className={css.requirements}>{validMaterial?.check.description || (!historical && !checkpoint.decision ? task.description : undefined) || l('此记录没有保存验收要求快照。')}</p>}
@@ -80,7 +87,6 @@ export function ReviewWorkbench({ team, task, conversation, ready, archived, bus
     </div>
     {!historical && <details className={css.discussion}><summary>{l('与 AI 讨论验收')}</summary>{archived ? <p>{l('恢复并编辑流程后可继续讨论。')}</p> : <>{discussion ?? <button disabled={busy} onClick={onDiscuss}><WorkflowIcon name="chat" />{l(conversation?.native ? '继续在此处讨论' : '在此处开始讨论')}</button>}<p className={css.hint}>{l('讨论使用整个检查点的上下文；聊天不会写入审批决定。')}</p>{onRestart && <details><summary>{l('重新开始讨论')}</summary><p>{l('新建独立讨论会归档当前讨论，从当前资料重新开始。')}</p><button disabled={busy || discussionBusy} onClick={onRestart}>{l('新建独立讨论')}</button></details>}</>}</details>}
     {!historical && !archived && proposal}
-    {!historical && checkpoint.decision === 'reject' && <p className={css.notice}>{l('已退回，下游保持等待。可将新返工节点连入此审核节点，自动进入下一轮审核；也可讨论返工对象并确认新方案。')}</p>}
     {!historical && !archived && !checkpoint.decision && <footer className={css.decision}><div className={css.footerTitle}><strong>{l('你的验收决定')}</strong><button disabled={busy || !ready} onClick={onRefresh}>{l('刷新验收材料')}</button></div><label>{l('验收意见（随决定保存）')}<textarea aria-label={l('验收意见')} value={note} maxLength={16000} onChange={e => { onNote(e.target.value); setConfirm(undefined) }} placeholder={l('记录通过或退回的原因…')} /></label><p className={css.hint}>{l('通过后，下游仍按依赖与暂停状态调度：')}{downstream.map(t => t.subject).join('、') || l('无')}</p>
       {issues > 0 && <p className={css.notice}>{l('当前材料有 {0} 项失败记录或文件读取缺口，请核实后决定。', issues)}</p>}
       {error && <p role="alert" className={css.notice}>{error}</p>}
@@ -88,4 +94,28 @@ export function ReviewWorkbench({ team, task, conversation, ready, archived, bus
       {confirm && canDecide && confirm.evidence === conversation?.evidence && <div className={css.confirmation} role="group" aria-label={l('确认本轮验收')}><strong>{l('确认通过第 {0} 轮验收？', checkpoint.round)}</strong><p>{l('请确认已核对要求与证据。Agent 报告通过不代表人工已验证。')}</p><div className={css.actions}><button disabled={busy} onClick={() => setConfirm(undefined)}>{l('继续检查')}</button><button className={css.primary} disabled={busy} onClick={() => void decide('approve')}>{l('确认通过')}</button></div></div>}
     </footer>}
   </aside>
+}
+
+/** Reuse the existing rerun action; no implicit approval or model-generated plan. */
+function RejectedReview({team,task,busy,blocked,onRerun,onReopen,onBack,onDiscuss}:{team:TeamState;task:TeamTask;busy:boolean;blocked?:string;onReopen?:()=>void;onRerun?: (id:string,instructions:string)=>Promise<boolean>;onBack:()=>void;onDiscuss:()=>void}) {
+  const l=useWorkflowText()
+  const candidates=rerunPath(team.tasks,task.id).filter(t=>!t.checkpoint&&['completed','failed','cancelled'].includes(t.status))
+  const [selected,setSelected]=useState(candidates.at(-1)?.id??'')
+  const [instructions,setInstructions]=useState(task.checkpoint?.note??'')
+  const submitting=useRef(false)
+  const source=candidates.find(t=>t.id===selected)
+  const impact=source?rerunImpact(team.tasks,source.id):undefined
+  const issue=blocked || (team.halted||team.phase==='staged'?l('请先恢复或启动团队，再安排返工。'):impact?.active.length?l('受影响的任务仍在运行，请先暂停后再返工。'):undefined)
+  return <section className={css.decision} aria-label={l('安排返工')}>
+    <h4>{l('验收已退回 · 下一步')}</h4><p>{l('选择需要修改的上游任务，确认返工要求后重跑。原结果和验收意见会保留在历史记录中。')}</p>
+    {onReopen&&<div className={css.notice}><p>{l('如果退回有误，或当前结果已经可以接受，可重新验收当前结果。退回记录会保留，不会自动通过或启动任务。')}</p><button type="button" disabled={busy||!!blocked||team.halted||team.phase==='staged'} onClick={onReopen}>{l('重新验收当前结果')}</button></div>}
+    {!!candidates.length && onRerun ? <form onSubmit={event=>{event.preventDefault();if(busy||submitting.current||issue||!source||!instructions.trim())return;submitting.current=true;void onRerun(source.id,instructions.trim()).finally(()=>{submitting.current=false})}}>
+      <label>{l('需要返工的任务')}<select aria-label={l('需要返工的任务')} value={source?.id??''} onChange={e=>setSelected(e.target.value)}>{!source&&<option value="">{l('请选择任务')}</option>}{candidates.map(t=><option key={t.id} value={t.id}>{t.subject}</option>)}</select></label>
+      <label>{l('返工要求')}<textarea aria-label={l('返工要求')} required maxLength={16000} value={instructions} onChange={e=>setInstructions(e.target.value)}/></label>
+      <p className={css.hint}>{l('受影响的后续节点：')}{impact?.descendants.map(t=>t.subject).join('、')||l('无')}</p>
+      <p className={css.hint}>{l('保存后先重跑所选任务，再点击「重跑到此节点」确认后续路径。新结果仍需人工验收，其他受影响分支保持暂停。')}</p>
+      {issue&&<p role="alert">{issue}</p>}<button type="submit" className={css.primary} disabled={busy||!!issue||!source||!instructions.trim()}>{l('保存要求并重跑任务')}</button>
+    </form>:<p>{l('没有可直接重跑的上游任务。请返回节点调整任务与依赖，或讨论返工方案。')}</p>}
+    <div className={css.actions}><button type="button" disabled={busy} onClick={onBack}>{l('返回节点调整流程')}</button><button type="button" disabled={busy} onClick={onDiscuss}>{l('讨论返工方案')}</button></div>
+  </section>
 }

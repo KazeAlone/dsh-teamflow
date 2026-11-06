@@ -19,7 +19,7 @@ Built on [AgentTeams](https://github.com/NanmiCoder/dsh-agent-teams), TeamFlow n
 
 ## Start here
 
-This README describes development version **`0.2.6-dev.12`**. The package is `@yogurtss/dsh-teamflow`; install it from this repository or a local build.
+This README describes development version **`0.2.6-dev.13`**. The package is `@yogurtss/dsh-teamflow`; install it from this repository or a local build.
 
 | Channel | Git source | Purpose |
 | --- | --- | --- |
@@ -64,6 +64,8 @@ At a human checkpoint, open the evidence and use **Approve** or **Return**. The 
 The **Review workbench** opens from the checkpoint's details, Needs attention, or the chat's review reminder. Inspect requirements, submitted checks, command records, and file digests beside the canvas; expand the panel for more space. Compare saved rounds or discuss the checkpoint with AI. Approval requires confirmation; returning work requires a reason. New decisions retain their evidence snapshot; older records without snapshots are labeled explicitly. Evidence links use exact criterion names, and agent reports are never treated as human approval.
 
 Open **Outcomes** at the top of Workflow to browse submissions, reported checks, and files grouped by source task. Markdown, text/code, CSV, and raster images preview directly from the current workspace; no model is called to collect, organize, or display them. Files come only from declared deliverables and reported changes. Current files are not historical snapshots, and agent reports are not human approval. Use **View source task** or a downstream checkpoint to continue reviewing.
+
+After a return, **Review current results again** starts a fresh review round while retaining the returned decision. To repair the work, select an upstream task under **Arrange rework**, confirm its instructions, and rerun it. Then use **Rerun to this node** to resume the path to the checkpoint; refresh the evidence and review the new result. Other affected branches stay paused.
 
 ### 4. Revise and reuse
 

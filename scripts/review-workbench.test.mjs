@@ -56,3 +56,13 @@ test('archive and decided legacy rounds are read-only and never show current evi
   const waiting=render({ready:false,conversation:undefined})
   assert.match(waiting,/not ready/);assert.match(waiting,/disabled=""[^>]*>Approve/)
 })
+
+
+test('returned review offers reconsideration and repair; archives do not mutate',()=>{
+ const returned={...task,checkpoint:{round:2,decision:'reject',note:'Fix encoding',history:[]}};
+ const team={id:'team',phase:'running',members:[],tasks:[{id:'work',subject:'Implementation',status:'completed',dependencies:[]},returned]};
+ const props={team,task:returned,onReopen(){},onRerun:async()=>true};
+ const html=render(props);assert.match(html,/Review current results again/);assert.match(html,/Save instructions and rerun task/);assert.match(html,/Fix encoding/);assert.doesNotMatch(html,/\p{Script=Han}/u);
+ const archive=render({...props,archived:true});assert.doesNotMatch(archive,/Save instructions and rerun task|Review current results again/);
+ const empty=render({...props,task:{...returned,dependencies:[]},team:{...team,tasks:[{...returned,dependencies:[]}]}});assert.match(empty,/No upstream task can be rerun/);assert.match(empty,/Review current results again/);
+});

@@ -389,6 +389,16 @@ export function installWorkflowWorkbench(ctx: Context, config: ToolsConfig, runt
             // Retain full prior transcript for audit; archive under a unique key.
             state.discussions[`archive:${randomUUID()}`] = structuredClone(discussion)
             state.discussions[`discussion:${key}`] = { key, messages: [], calls: [] }
+          } else if (action === 'reopen_review') {
+            if(body['base'] !== workflowFingerprint(team))throw new Error('团队已变化，请刷新节点后重新确认')
+            const task=team.tasks.find(t=>t.id===body['taskId'])
+            if(!task?.checkpoint || task.checkpoint.decision!=='reject' || task.status!=='pending')throw new Error('只能重新验收已退回的检查点')
+            task.checkpoint={round:task.checkpoint.round+1,history:task.checkpoint.history}
+            if(!checkpointReady(team,task))throw new Error('请先完成上游任务并启用检查点，再重新验收')
+            task.updatedAt=Date.now()
+            const discussion=discussionOf(team, 'check:'+task.id),material=workflowMaterials(team,task.id,workspace)
+            discussion.materials=material.text;discussion.evidence=material.evidence;discussion.materialsRound=task.checkpoint.round
+            if(discussion.native)delete discussion.native.reviewEvidence
           } else if (action === 'review') {
             const id = string(body['taskId'], 'taskId'), decision = body['decision']
             if (decision !== 'approve' && decision !== 'reject') throw new Error('无效验收决定')
@@ -427,7 +437,7 @@ export function installWorkflowWorkbench(ctx: Context, config: ToolsConfig, runt
       // A fresh discussion may archive the caller's old discussion after ownership was checked.
       const team = openedSessionId ? await readTeam(root, teamId) : await load()
       if (!team) throw new Error('团队不存在')
-      reply(200, { team, base: workflowFingerprint(team), ...(['create','template_apply','state','open_discussion','review','edit','apply','resume_rerun_path','resume_task','stop_task','start','set_flow_enabled'].includes(action) || toggling ? {activity:await assembleTeamSnapshot(ctx,root,'',team)}:{}), ready: team.tasks.filter(t => checkpointReady(team, t) && !t.checkpoint?.decision).map(t => t.id),
+      reply(200, { team, base: workflowFingerprint(team), ...(['create','template_apply','state','open_discussion','review','reopen_review','edit','apply','resume_rerun_path','resume_task','stop_task','start','set_flow_enabled'].includes(action) || toggling ? {activity:await assembleTeamSnapshot(ctx,root,'',team)}:{}), ready: team.tasks.filter(t => checkpointReady(team, t) && !t.checkpoint?.decision).map(t => t.id),
         openedSessionId, currentDiscussion, busy: Object.values(team.workflow?.discussions ?? {}).filter(d => d.native?.sessionId && ctx.agents.get(d.native.sessionId as SessionId)?.status === 'running').map(d => d.key) })
     } catch (error) {
       reply(error instanceof RequestBodyError ? error.status : 409, { error: error instanceof Error ? error.message : '操作失败' })
