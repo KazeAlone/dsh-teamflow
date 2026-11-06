@@ -1,3 +1,4 @@
+import { galleryAccessKeys } from "../gallery-access.ts"
 import { briefDisplay } from './workflow-text.ts'
 import { workflowMessage } from './workflow-text.ts'
 import { localizeBuiltinTemplate, builtinText } from '../builtin-template-locales.ts'
@@ -81,7 +82,7 @@ export function TemplateGallery({sessionId,team,archived=false,mode='browse',onA
       <label>{l("标签（逗号分隔）")}<input key={draft.tags.join('，')} defaultValue={draft.tags.join('，')} onBlur={e=>setDraft({...draft,tags:e.target.value.split(/[,，]/).map(s=>s.trim()).filter(Boolean)})}/></label>
       <label>{l("应用前需要提供的信息")}<textarea value={draft.inputs} maxLength={4000} onChange={e=>setDraft({...draft,inputs:e.target.value})}/></label>
       <MiniFlow template={draft} large/>
-      <h3>{l("成员通用职责")}</h3>{draft.members.map((m,i)=><details key={m.name}><summary>{m.name} · {m.summary}</summary>{(['summary','role','executionPrompt'] as const).map(key=><label key={key}>{key==='summary'?l("职责概述"):key==='role'?l("长期职责"):l("通用执行指令 / PE")}<textarea value={m[key]} maxLength={16000} onChange={e=>setDraft({...draft,members:draft.members.map((member,index)=>index===i?{...member,[key]:e.target.value}:member)})}/></label>)}</details>)}
+      <h3>{l("成员通用职责")}</h3>{draft.members.map((m,i)=><details key={m.name}><summary>{m.name} · {m.summary}</summary>{(['summary','role','executionPrompt'] as const).map(key=><label key={key}>{key==='summary'?l("职责概述"):key==='role'?l("长期职责"):l("通用执行指令 / PE")}<textarea value={m[key]} maxLength={16000} onChange={e=>setDraft({...draft,members:draft.members.map((member,index)=>index===i?{...member,[key]:e.target.value}:member)})}/></label>)}{galleryAccessKeys.map(key => <label className={css.galleryPermission} key={key}><input type="checkbox" checked={m[key] !== false} disabled={busy} onChange={e=>setDraft({...draft,members:draft.members.map((member,index)=>index===i?{...member,[key]:e.target.checked}:member)})}/>{key === 'gallerySkill' ? l("允许使用 Gallery Skill") : l("允许使用 Gallery MCP")}</label>)}</details>)}
       <h3>{l("节点通用任务")}</h3>{draft.tasks.map((t,i)=><details key={t.id} open={!t.general.requirements}><summary>{t.checkpoint?l("人工检查"):l("任务")} · {t.subject}</summary><label>{l("通用节点名称")}<input value={t.subject} maxLength={200} onChange={e=>setDraft({...draft,tasks:draft.tasks.map((task,index)=>index===i?{...task,subject:e.target.value}:task)})}/></label>
         {briefEditor(t.general,general=>setDraft({...draft,tasks:draft.tasks.map((task,index)=>index===i?{...task,general}:task)}))}
         {mode==='save'&&team?.tasks.find(task=>task.id===t.id)?.description&&<details><summary>{l("原任务（仅用于对照）")}</summary><p>{team.tasks.find(task=>task.id===t.id)?.description}</p></details>}

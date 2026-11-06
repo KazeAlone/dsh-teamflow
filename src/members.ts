@@ -1,3 +1,4 @@
+import { parseGalleryAccess, type GalleryAccess } from "./gallery-access.ts"
 /**
  * Member subagent lifecycle: spawn a continuable child per member, deliver
  * task turns and step-boundary messages, and observe its activity.
@@ -681,7 +682,23 @@ export function installMemberSelectionRuntime(
         } catch (error) { stopFilter(); throw error }
       } catch (error) { disposeAdmission(); throw error }
     }
-    const cleanupAdmission = (): void => { disposeSetup(); disposeAdmission() }
+    const access = setup ?? savedMember
+    let stopGallery = (): void => undefined
+    try {
+      if (access?.gallerySkill !== undefined || access?.galleryMcp !== undefined) {
+        const gallery = (ctx as unknown as { get(key: string): unknown }).get('gallery') as {
+          setMemberAccess?: (agent: Agent, access: GalleryAccess) => () => void
+        } | undefined
+        if (gallery) {
+          if (!gallery.setMemberAccess) throw new Error('请先升级 Gallery，以应用成员的 Skill / MCP 开关')
+          stopGallery = gallery.setMemberAccess(child, parseGalleryAccess({...access}))
+        }
+      }
+    } catch (error) {
+      stopGallery(); disposeSetup(); disposeAdmission()
+      throw error
+    }
+    const cleanupAdmission = (): void => { stopGallery(); disposeSetup(); disposeAdmission() }
     let selection = pending.get(key)
     if (selection === undefined) {
       const team = readTeamSync(stateRoot, teamId)
@@ -689,6 +706,7 @@ export function installMemberSelectionRuntime(
       const durableMember = team.members.find(member => member.name === memberName)
       selection = selectionFromMember(durableMember)
       if (selection !== undefined && (descriptor.agentProvider !== durableMember?.provider || descriptor.agentModel !== durableMember?.model)) {
+        cleanupAdmission()
         throw new Error(
           `agent-teams: saved model route for member "${memberName}" does not match its subagent descriptor`,
         )
@@ -941,7 +959,7 @@ export async function spawnMember(
   const start = await startMemberWithLenientFilter(
     toolFilter => {
       acceptedFilter = toolFilter
-      const setup = { persona: memberPersona(team, member, stateDir, config.executionPrompt), toolFilter }
+      const setup = { persona: memberPersona(team, member, stateDir, config.executionPrompt), toolFilter, ...parseGalleryAccess({...member}) }
       return selections.withPending(captain.id, label, llmSelection, () => startMember(ctx.subagents, {
         provider: config.provider,
         label,
@@ -974,7 +992,7 @@ export async function spawnMember(
   )
   member.id = start.childId
   if (usesManagedActivations(ctx.subagents)) {
-    member.runtimeSetup = { persona: memberPersona(team, member, stateDir, config.executionPrompt), toolFilter: acceptedFilter }
+    member.runtimeSetup = { persona: memberPersona(team, member, stateDir, config.executionPrompt), toolFilter: acceptedFilter, ...parseGalleryAccess({...member}) }
   }
   // Only a policy member carries a persisted filter snapshot; a member without
   // a policy keeps its public record shape. Legacy descriptors or runtimeSetup

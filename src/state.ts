@@ -772,6 +772,7 @@ function isFiniteNumber(value: unknown): value is number {
 /** Validate one member record at the durable JSON boundary. */
 function isTeamMember(value: unknown): value is TeamMember {
   if (isRecord(value) && !isOptionalString(value['specificPrompt'])) return false
+  if (isRecord(value) && [value['gallerySkill'], value['galleryMcp']].some(flag => flag !== undefined && typeof flag !== 'boolean')) return false
   if (!isRecord(value)) return false
   return typeof value['id'] === 'string'
     && typeof value['name'] === 'string'

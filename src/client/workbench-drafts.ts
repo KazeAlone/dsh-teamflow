@@ -1,3 +1,4 @@
+import { galleryAccessKeys, type GalleryAccess } from "../gallery-access.ts"
 import { sourceText, type WorkflowText } from './workflow-text.ts'
 import type { TeamState } from '../types.ts'
 import type { WorkflowOperation } from '../workflow-types.ts'
@@ -36,6 +37,14 @@ export function decodeDrafts(raw: string | null, teamId: string): Record<string,
 }
 export const draftStorageKey = (sessionId: string, teamId: string) => `teamflow:property-drafts:v1:${JSON.stringify([sessionId,teamId])}`
 
+export function draftGalleryAccess(draft: Record<string, string>): GalleryAccess {
+  const result: GalleryAccess = {}
+  for (const key of galleryAccessKeys) {
+    if (draft[key] === 'true' || draft[key] === 'false') result[key] = draft[key] === 'true'
+  }
+  return result
+}
+
 /** Bulk save changes configuration only; execution decisions require their own button. */
 export function propertyOperation(team: TeamState, target: EditorTarget, entry: EditorDraft): WorkflowOperation {
   if (entry.source !== draftSource(team,target)) throw new Error('有对象已变化，请逐项核对草稿后再保存全部。')
@@ -45,8 +54,8 @@ export function propertyOperation(team: TeamState, target: EditorTarget, entry: 
     if (target.id && !team.members.some(m => m.name === target.id && m.status !== 'removed')) throw new Error(`成员 ${target.id} 已移除，草稿保留。`)
     const route = value['routeChanged'] ? {provider:value['provider'],model:value['model'],reasoningEffort:value['reasoningEffort'] || 'default'} : {}
     return target.id
-      ? {action:'update_member',name:target.id,summary:value['summary'],role:value['role'],executionPrompt:value['executionPrompt'],specificPrompt:value['specificPrompt'],...route}
-      : {action:'add_member',name:value['name'] ?? '',summary:value['summary'] ?? '',role:value['role'],executionPrompt:value['executionPrompt'],specificPrompt:value['specificPrompt'],...route}
+      ? {action:'update_member',name:target.id,summary:value['summary'],role:value['role'],executionPrompt:value['executionPrompt'],specificPrompt:value['specificPrompt'],...draftGalleryAccess(value),...route}
+      : {action:'add_member',name:value['name'] ?? '',summary:value['summary'] ?? '',role:value['role'],executionPrompt:value['executionPrompt'],specificPrompt:value['specificPrompt'],...draftGalleryAccess(value),...route}
   }
   const task = team.tasks.find(item => item.id === target.id)
   if (!task || task.status !== 'pending') throw new Error('已开始或已结束任务的草稿需单独处理；保存全部不会自动重跑。')

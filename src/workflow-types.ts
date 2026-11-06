@@ -1,7 +1,8 @@
+import type { GalleryAccess } from "./gallery-access.ts"
 /** Persistent human-controlled workflow and isolated discussion contracts. */
 export type WorkflowOperation =
-  | { action: 'add_member'; name: string; summary: string; role?: string; executionPrompt?: string; specificPrompt?: string; provider?: string; model?: string; reasoningEffort?: string }
-  | { action: 'update_member'; name: string; summary?: string; role?: string; executionPrompt?: string; specificPrompt?: string; provider?: string; model?: string; reasoningEffort?: string }
+  | (GalleryAccess & { action: 'add_member'; name: string; summary: string; role?: string; executionPrompt?: string; specificPrompt?: string; provider?: string; model?: string; reasoningEffort?: string })
+  | (GalleryAccess & { action: 'update_member'; name: string; summary?: string; role?: string; executionPrompt?: string; specificPrompt?: string; provider?: string; model?: string; reasoningEffort?: string })
   | { action: 'remove_member'; name: string }
   | { action: 'add_task'; id?: string; subject: string; description?: string; adaptationIssue?: string; assignee?: string; dependencies: string[]; checkpoint?: boolean; configurationPending?: boolean }
   | { action: 'update_task'; id: string; subject?: string; description?: string; adaptationIssue?: string; assignee?: string; dependencies?: string[]; confirmConfiguration?: boolean }

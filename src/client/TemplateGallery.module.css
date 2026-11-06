@@ -23,3 +23,6 @@
 .applyGrid .flowLarge { margin-top: 0; }
 .applyGrid > .warning { margin: 0; }
 @media (max-width: 900px) { .applyGrid { grid-template-columns: minmax(0, 1fr); } }
+
+label.galleryPermission { flex-direction: row; align-items: center; gap: 8px; }
+label.galleryPermission input[type="checkbox"] { width: auto; }

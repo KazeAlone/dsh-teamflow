@@ -1,9 +1,10 @@
+import { parseGalleryAccess, type GalleryAccess } from "./gallery-access.ts"
 /** Runtime-independent template format. Only explicitly portable fields are exported. */
 import type { TeamState } from './types.ts'
 import type { WorkflowOperation } from './workflow-types.ts'
 import { emptyBrief, parseBrief, type TaskBrief } from './template-brief.ts'
 
-export interface TemplateMember { name: string; summary: string; role: string; executionPrompt: string }
+export interface TemplateMember extends GalleryAccess { name: string; summary: string; role: string; executionPrompt: string }
 export interface TemplateTask { id: string; subject: string; assignee: string; dependencies: string[]; checkpoint: boolean; general: TaskBrief }
 export interface TemplateDefinition {
   name: string; description: string; tags: string[]; inputs: string
@@ -54,7 +55,7 @@ export function parseTemplate(value: unknown): TemplateDefinition {
   const v = object(value)
   const members = array(v['members'], 32).map(raw => {
     const m = object(raw)
-    return {name:text(m['name'],true,80), summary:text(m['summary']), role:text(m['role']), executionPrompt:text(m['executionPrompt'])}
+    return {name:text(m['name'],true,80), summary:text(m['summary']), role:text(m['role']), executionPrompt:text(m['executionPrompt']), ...parseGalleryAccess(m)}
   })
   if (members.some(m => !/^[\p{L}\p{N}_-]+$/u.test(m.name) || m.name.toLowerCase() === 'captain') || new Set(members.map(m=>m.name.toLowerCase())).size !== members.length) throw new Error('模板成员名称重复或无效')
   const tasks = array(v['tasks'], 32).map(raw => {
@@ -83,7 +84,7 @@ export function parseTemplate(value: unknown): TemplateDefinition {
 /** A manual starting point; legacy descriptions are not silently promoted to generic instructions. */
 export function templateSeed(team: TeamState): TemplateDefinition {
   return parseTemplate({name:team.name,description:'',inputs:'',tags:[],
-    members:team.members.filter(m=>m.status!=='removed'||team.tasks.some(t=>t.assignee===m.name)).map(m=>({name:m.name,summary:m.summary??'',role:m.role??'',executionPrompt:m.executionPrompt??''})),
+    members:team.members.filter(m=>m.status!=='removed'||team.tasks.some(t=>t.assignee===m.name)).map(m=>({name:m.name,summary:m.summary??'',role:m.role??'',executionPrompt:m.executionPrompt??'', ...parseGalleryAccess({...m})})),
     tasks:team.tasks.map(t=>({id:t.id,subject:t.subject,assignee:t.checkpoint?'':t.assignee??'',dependencies:t.dependencies,checkpoint:!!t.checkpoint,general:emptyBrief()})),
     positions:Object.fromEntries(Object.entries(team.workflow?.positions??{}).filter(([key])=>team.tasks.some(t=>key===`task:${t.id}`)))})
 }
@@ -92,7 +93,12 @@ export function templateTopology(value: Pick<TemplateDefinition,'members'|'tasks
 }
 export function extractedTemplate(team:TeamState, value:unknown):TemplateDefinition {
   const result=parseTemplate(value)
-  if(templateTopology(result)!==templateTopology(templateSeed(team)))throw new Error('提炼模板必须保留成员、节点、负责人和连线')
+  const source = templateSeed(team)
+  if(templateTopology(result)!==templateTopology(source))throw new Error('提炼模板必须保留成员、节点、负责人和连线')
+  result.members = result.members.map(({ name, summary, role, executionPrompt }) => ({
+    name, summary, role, executionPrompt,
+    ...parseGalleryAccess({ ...source.members.find(member => member.name === name) }),
+  }))
   return result
 }
 export function instantiateTemplate(template:TemplateVersion, id:string, captainSessionId:string, name:string, goal:string, now=Date.now()):TeamState {

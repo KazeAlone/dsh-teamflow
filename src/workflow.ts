@@ -1,3 +1,4 @@
+import { parseGalleryAccess } from "./gallery-access.ts"
 /** Human workflow operations. Model output is a proposal, never execution authority. */
 import { createHash, randomUUID } from 'node:crypto'
 import type { TeamState, TeamTask } from './types.ts'
@@ -39,8 +40,8 @@ export function parseWorkflowOperations(value: unknown): WorkflowOperation[] {
     if (op['layers'] !== undefined) throw new Error('任务只使用 description 字符串；通用要求请在保存模板时提炼')
     for (const field of ['configurationPending', 'confirmConfiguration']) if (op[field] !== undefined && typeof op[field] !== 'boolean') throw new Error(`${field} 必须是布尔值`)
     switch (action) {
-      case 'add_member': return { action, name: text(op['name'], 'name', true)!, summary: text(op['summary'], 'summary', true)!, ...fields(['role', 'executionPrompt', 'specificPrompt', 'provider', 'model', 'reasoningEffort']) }
-      case 'update_member': return { action, name: text(op['name'], 'name', true)!, ...fields(['summary', 'role', 'executionPrompt', 'specificPrompt', 'provider', 'model', 'reasoningEffort']) }
+      case 'add_member': return { action, ...parseGalleryAccess(op), name: text(op['name'], 'name', true)!, summary: text(op['summary'], 'summary', true)!, ...fields(['role', 'executionPrompt', 'specificPrompt', 'provider', 'model', 'reasoningEffort']) }
+      case 'update_member': return { action, ...parseGalleryAccess(op), name: text(op['name'], 'name', true)!, ...fields(['summary', 'role', 'executionPrompt', 'specificPrompt', 'provider', 'model', 'reasoningEffort']) }
       case 'remove_member': return { action, name: text(op['name'], 'name', true)! }
       case 'add_task': {
         if (op['checkpoint'] !== undefined && typeof op['checkpoint'] !== 'boolean') throw new Error('checkpoint 必须是布尔值')
@@ -122,7 +123,7 @@ export function applyWorkflowOperations(original: TeamState, operations: Workflo
     if (op.action === 'add_member') {
       if (sanitizeKey(op.name) === 'captain' || team.members.some(m => sanitizeKey(m.name) === sanitizeKey(op.name))) throw new Error('成员名称重复或保留')
       if (team.members.filter(m => m.status !== 'removed').length >= maxMembers) throw new Error('已达到团队成员上限')
-      team.members.push({ id: '', name: op.name, summary: op.summary, role: op.role, executionPrompt: op.executionPrompt, specificPrompt: op.specificPrompt,
+      team.members.push({ id: '', name: op.name, gallerySkill: op.gallerySkill ?? false, galleryMcp: op.galleryMcp ?? false, summary: op.summary, role: op.role, executionPrompt: op.executionPrompt, specificPrompt: op.specificPrompt,
         provider: op.provider, model: op.model, reasoningEffort: op.reasoningEffort, joinedAt: now, status: 'idle' })
     } else if (op.action === 'update_member' || op.action === 'remove_member') {
       const member = team.members.find(m => m.name === op.name && m.status !== 'removed')
@@ -132,6 +133,7 @@ export function applyWorkflowOperations(original: TeamState, operations: Workflo
         if (team.tasks.some(t => t.assignee === member.name && t.status === 'pending')) throw new Error('先重新分配该成员的待执行任务')
         member.status = 'removed'
       } else {
+        Object.assign(member, parseGalleryAccess({...op}))
         if (op.summary !== undefined) member.summary = op.summary
         if (op.role !== undefined) member.role = op.role
         if (op.executionPrompt !== undefined) member.executionPrompt = op.executionPrompt

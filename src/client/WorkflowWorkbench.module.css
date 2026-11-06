@@ -374,3 +374,6 @@ form.editor { display: flex; flex-direction: column; padding: 0; }
   .columns[data-reviewing='true']:not([data-inspector-hidden='true']) { grid-template-columns:minmax(0,1fr); }
   .columns[data-reviewing='true']>.resizeHandle { display:none; }
 }
+
+label.galleryPermission { flex-direction: row; align-items: center; gap: 8px; }
+label.galleryPermission input[type="checkbox"] { width: auto; }

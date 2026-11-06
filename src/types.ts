@@ -1,3 +1,4 @@
+import type { GalleryAccess } from "./gallery-access.ts"
 /**
  * Durable AgentTeams state types.
  *
@@ -279,7 +280,7 @@ export interface TeamTask {
 export type MemberStatus = 'idle' | 'working' | 'removed'
 
 /** One team member: a continuable subagent plus its team-side record. */
-export interface TeamMember {
+export interface TeamMember extends GalleryAccess {
   /** Instance-only instructions, never exported as the reusable member prompt. */
   specificPrompt?: string
   /** Short user-facing responsibility summary, independent of execution instructions. */
@@ -321,7 +322,7 @@ export interface TeamMember {
    */
   toolFilter?: MemberToolFilter
   /** Exact child-scoped setup restored on hosts with managed activations. */
-  runtimeSetup?: { persona: string; toolFilter: MemberToolFilter }
+  runtimeSetup?: { persona: string; toolFilter: MemberToolFilter } & GalleryAccess
   joinedAt: number
   status: MemberStatus
   /** Execution admission is closed while a failed/pending handoff is drained. */
