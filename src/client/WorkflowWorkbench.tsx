@@ -28,6 +28,7 @@ import { awaitsFirstStart } from '../task-start-state.ts'
 import { IconBranchOutline16, WorkflowIcon } from './icons.tsx'
 import { BrandIcon } from './BrandIcon.tsx'
 import { TemplateGallery } from './TemplateGallery.tsx'
+import { OutcomeShowcase } from './OutcomeShowcase.tsx'
 import { ReviewWorkbench } from './ReviewWorkbench.tsx'
 
 interface Response { team: TeamState; base: string; ready: string[]; busy: string[]; openedSessionId?: string; currentDiscussion?: string; activity?:ActivityTeam }
@@ -79,6 +80,7 @@ function Workbench({ sessionId, teamId, archived = false, waitingCount = 0, open
   const l = useWorkflowText(t)
 
   const [opened, setOpened] = useState(initiallyOpen || !!entryTarget)
+  const [showOutcomes, setShowOutcomes] = useState(false)
   const [galleryMode,setGalleryMode]=useState<'browse'|'save'|undefined>(teamId?undefined:'browse')
   const entryOpened = useRef(false)
   const [editing, setEditing] = useState(false)
@@ -320,6 +322,7 @@ function Workbench({ sessionId, teamId, archived = false, waitingCount = 0, open
     requestAnimationFrame(() => { const p = pos(id); canvas.current?.scrollTo({left:Math.max(0,p.x*zoom-48),top:Math.max(0,p.y*zoom-48),behavior:window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth'}) })
   }
   function locateTask(id: string, focusField?: string, focusSection = '[data-task-heading]'): void {
+    setShowOutcomes(false)
     const task = team?.tasks.find(item => item.id === id)
     if (!task) return
     setGalleryMode(undefined); setOpened(true)
@@ -516,6 +519,7 @@ function Workbench({ sessionId, teamId, archived = false, waitingCount = 0, open
     })
   }
   async function openReview(id: string): Promise<void> {
+    setShowOutcomes(false)
     setGalleryMode(undefined); setEditing(false); setOpened(true)
     setInspectorWidth(width => Math.max(width, 640))
     selectDiscussion(`check:${id}`); scrollToTask(id)
@@ -585,7 +589,7 @@ function Workbench({ sessionId, teamId, archived = false, waitingCount = 0, open
     </section>}
     </>}
     {opened && createPortal(<section ref={dialog} className={css.workbench} style={{'--wb-node-width':`${WORKFLOW_NODE_WIDTH}px`,'--wb-port-y':`${WORKFLOW_PORT_Y}px`} as CSSProperties} data-live={!archiveView} data-maximized={maximized} data-editing={!!editor || !!selectedEdge || !!activeTask} role="dialog" aria-modal="true" aria-label={l("TeamFlow 编排工作台")} onKeyDown={event => {
-      if (!galleryMode && !archiveView && editing && (event.key === 'Delete' || event.key === 'Backspace') && (selectedEdge || selectedTask) && !(event.target as HTMLElement).closest('input,textarea,select,[contenteditable="true"]')) { event.preventDefault(); if (selectedEdge) void deleteEdge(); else if (selectedTask) void deleteNode(selectedTask); return }
+      if (!galleryMode && !showOutcomes && !archiveView && editing && (event.key === 'Delete' || event.key === 'Backspace') && (selectedEdge || selectedTask) && !(event.target as HTMLElement).closest('input,textarea,select,[contenteditable="true"]')) { event.preventDefault(); if (selectedEdge) void deleteEdge(); else if (selectedTask) void deleteNode(selectedTask); return }
       if (event.key === 'Escape') { if (cancelLink.current) { cancelLink.current(); return }; if (editor) { setEditing(false); setFeedback(l("已退出编辑，未保存的草稿已保留。")) } else closeWorkbench() }
       if (event.key === 'Tab') {
         const scope = dialog.current
@@ -596,18 +600,19 @@ function Workbench({ sessionId, teamId, archived = false, waitingCount = 0, open
       }
     }}>
       <header className={css.header}><div className={css.title}><BrandIcon size={32}/><div><strong>{team?.name ?? 'Teamflow'}</strong><span>{archiveView ? l("归档画布 · 成果与详情完整保留") : team?.phase === 'staged' ? l("准备流程 · 确认后开始执行") : l("团队工作台")}{!!team?.tasks.length && <> · {l("已完成 {0}/{1}", completed, team.tasks.length)}</>}</span></div></div>
-        <div>{team && !galleryMode && (archiveView ? <button className={css.primary} disabled={working} onClick={() => void perform('restore_archive')}><WorkflowIcon name="edit" />{l("恢复并编辑流程")}</button> : <button aria-pressed={editing} onClick={() => {setEditing(!editing);updateView(current=>({...current,revision:current.revision+1}))}}>{editing ? <IconBranchOutline16 /> : <WorkflowIcon name="edit" />}{editing ? l("查看流程") : l("编辑流程")}</button>)}
-          {!galleryMode && !archiveView && team?.phase === 'staged' && <button className={css.primary} disabled={working || unsaved.length > 0 || unconfigured.length > 0 || pendingCount > 0} title={unsaved.length ? l("请先保存属性草稿") : unconfigured.length ? l("请先完成待配置节点") : pendingCount ? l("请先处理待确认的修改") : undefined} onClick={() => void perform('start')}>{l("确认并启动")}</button>}
-          {!galleryMode && !archiveView && team?.phase !== 'staged' && team && !team.halted && <span data-flow-controls title={l(zh['flow.control.hint'])}>
+        <div>{team && !galleryMode && !showOutcomes && (archiveView ? <button className={css.primary} disabled={working} onClick={() => void perform('restore_archive')}><WorkflowIcon name="edit" />{l("恢复并编辑流程")}</button> : <button aria-pressed={editing} onClick={() => {setEditing(!editing);updateView(current=>({...current,revision:current.revision+1}))}}>{editing ? <IconBranchOutline16 /> : <WorkflowIcon name="edit" />}{editing ? l("查看流程") : l("编辑流程")}</button>)}
+          {!galleryMode && !showOutcomes && !archiveView && team?.phase === 'staged' && <button className={css.primary} disabled={working || unsaved.length > 0 || unconfigured.length > 0 || pendingCount > 0} title={unsaved.length ? l("请先保存属性草稿") : unconfigured.length ? l("请先完成待配置节点") : pendingCount ? l("请先处理待确认的修改") : undefined} onClick={() => void perform('start')}>{l("确认并启动")}</button>}
+          {!galleryMode && !showOutcomes && !archiveView && team?.phase !== 'staged' && team && !team.halted && <span data-flow-controls title={l(zh['flow.control.hint'])}>
             <button disabled={working || unsaved.length > 0 || !flow?.canStart} onClick={() => void perform('set_flow_enabled',{enabled:true,version:flowControlVersion(team)})}>{l("开始全部")}</button>
             <button disabled={working || !flow?.canPause} onClick={() => void perform('set_flow_enabled',{enabled:false,version:flowControlVersion(team)})}>{l("暂停全部")}</button>
           </span>}
           {onShowActivity && <button onClick={onShowActivity}>{l("团队活动与历史")}</button>}
           <button aria-pressed={maximized} onClick={() => setMaximized(!maximized)}><WorkflowIcon name="expand" />{maximized ? l("退出全屏") : l("全屏")}</button>
           <button onClick={closeWorkbench} aria-label={l("关闭编排工作台")}>{l("关闭")}</button></div></header>
-      <nav className={css.pageTabs} aria-label={l("Teamflow 页面")}><button aria-pressed={!galleryMode} onClick={()=>setGalleryMode(undefined)}><BrandIcon/>{team?l("当前流程"):l("从零创建")}</button><button aria-pressed={!!galleryMode} className={css.galleryEntry} onClick={()=>setGalleryMode('browse')}><BrandIcon name="gallery"/>{l("流程模板库 ")}{l.language==='zh'&&<small>Gallery</small>}</button>{team&&<button disabled={working||!!unsaved.length||!team.tasks.length} title={unsaved.length?l("请先保存属性草稿"):undefined} onClick={()=>setGalleryMode('save')}><BrandIcon name="save"/>{l("保存为模板")}</button>}{team?.workflow?.templateSource&&<small>{l("来自 ")}{team.workflow.templateSource.name} · v{team.workflow.templateSource.version}</small>}</nav>
+      <nav className={css.pageTabs} aria-label={l("Teamflow 页面")}><button aria-pressed={!galleryMode && !showOutcomes} onClick={()=>{setGalleryMode(undefined);setShowOutcomes(false)}}><BrandIcon/>{team?l("当前流程"):l("从零创建")}</button><button hidden={!team} aria-pressed={showOutcomes} onClick={()=>{setGalleryMode(undefined);setShowOutcomes(true)}}>{l("成果")}</button><button aria-pressed={!!galleryMode} className={css.galleryEntry} onClick={()=>{setShowOutcomes(false);setGalleryMode('browse')}}><BrandIcon name="gallery"/>{l("流程模板库 ")}{l.language==='zh'&&<small>Gallery</small>}</button>{team&&<button disabled={working||!!unsaved.length||!team.tasks.length} title={unsaved.length?l("请先保存属性草稿"):undefined} onClick={()=>{setShowOutcomes(false);setGalleryMode('save')}}><BrandIcon name="save"/>{l("保存为模板")}</button>}{team?.workflow?.templateSource&&<small>{l("来自 ")}{team.workflow.templateSource.name} · v{team.workflow.templateSource.version}</small>}</nav>
       {galleryMode&&<TemplateGallery key={galleryMode} sessionId={sessionId} team={team} archived={archiveView} mode={galleryMode} onBack={()=>setGalleryMode(undefined)} onApply={async(template,name,goal)=>{const result=await perform('template_apply',{templateId:template.id,version:template.version,name,description:goal,language:l.language});if(!result)throw new Error(l("未能创建流程，请查看页面错误或刷新重试"));setGalleryMode(undefined);setEditing(false);await startEmbedded('adapt',result.team.id)}}/>}
-      <div className={css.workbenchBody} hidden={!!galleryMode}>
+      {showOutcomes && !galleryMode && team && <OutcomeShowcase key={team.id+':'+sessionId} team={team} sessionId={sessionId} archived={archiveView} onTask={(id,review)=>{if(review)void openReview(id);else locateTask(id)}}/>}
+      <div className={css.workbenchBody} hidden={!!galleryMode || showOutcomes}>
       {team && <nav className={css.commandBar} aria-label={l("创建与视图")}>
         {team.workflow?.templateSource&&team.phase==='staged'&&<button disabled={working} onClick={()=>void startEmbedded('adapt')}><BrandIcon/>{l("统一适配本次任务")}</button>}<strong>{l("创建")}</strong><button disabled={working || archiveView} onClick={() => void createNode('task')}><WorkflowIcon name="task" />{l("任务节点")}</button><button disabled={working || archiveView} onClick={() => void createNode('check')}><WorkflowIcon name="review" />{l("人工节点")}</button><button disabled={working || archiveView} onClick={() => edit('member')}><WorkflowIcon name="agent" />Agent</button>
         <span className={css.commandSpacer} /><button aria-pressed={!inspectorHidden} onClick={() => { setPane(inspectorHidden ? 'discussion' : 'flow'); setInspectorHidden(!inspectorHidden) }}>{inspectorHidden ? l("显示右侧面板") : l("收起右侧面板")}</button>

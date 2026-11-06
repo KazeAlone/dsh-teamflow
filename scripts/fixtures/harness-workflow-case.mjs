@@ -38,6 +38,15 @@ export async function exerciseWorkflow({ baseUrl, cookie, captain, readTeam, rec
   const unauthorized = await fetch(baseUrl + '/plugins/dsh-agent-teams/workflow', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ sessionId: captain.id, teamId: 'runtime-lab', action: 'state' }) });
   assert.ok([401, 403].includes(unauthorized.status));
   await post('state', { teamId: 'missing-team' }, 409);
+  writeFileSync('outcome-report.md','# Packaged outcome preview');
+  const beforePreview=(await post('state')).team, callsBeforePreview=events.filter(e=>e.event==='web-request').length;
+  const preview=await post('outcome_preview',{taskId:'t1',path:'outcome-report.md'});
+  assert.equal(preview.preview.text,'# Packaged outcome preview');assert.equal(preview.preview.kind,'markdown');
+  await post('outcome_preview',{taskId:'t1',path:'undeclared.md'},409);
+  await post('outcome_preview',{sessionId:'unknown-session',taskId:'t1',path:'outcome-report.md'},409);
+  assert.deepEqual((await post('state')).team,beforePreview);
+  assert.equal(events.filter(e=>e.event==='web-request').length,callsBeforePreview);
+  record({event:'outcome-preview-passed',readOnly:true,noModelCalls:true,ownerBound:true});
   const prior = readTeam().members[0].summary;
   let result = await nativeDiscussion('member:worker');
   assert.equal(readTeam().members[0].summary, prior, 'Discussion must not mutate the worker');

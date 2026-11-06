@@ -126,7 +126,7 @@ class WebApprovalAdapter extends LlmAdapter {
             else if (calls.filter(block => block.name === 'agent_teams_update_task').length < 2) {
                 const attempt = toolText.match(/attempt_id ([^,\s)]+)/)?.[1];
                 assert.ok(attempt, 'Claim result must expose the real task attempt');
-                chunks = call('agent_teams_update_task', { task_id: 't1', status: names.includes('agent_teams_update_task') ? 'completed' : 'in_progress', output: 'WEB_MEMBER_TASK_DONE', attempt_id: attempt });
+                chunks = call('agent_teams_update_task', { task_id: 't1', status: names.includes('agent_teams_update_task') ? 'completed' : 'in_progress', output: 'WEB_MEMBER_TASK_DONE', changedPaths: ['outcome-report.md'], attempt_id: attempt });
             }
             else if (!names.includes('agent_teams_send_message')) chunks = call('agent_teams_send_message', { to: 'captain', content: 'WEB_MEMBER_REPORT_OK' });
             else chunks = textChunks('WEB_MEMBER_DONE');

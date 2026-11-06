@@ -26,10 +26,60 @@
  */
 
 import { createHash } from 'node:crypto'
-import { closeSync, lstatSync, openSync, readSync, readdirSync, realpathSync, statSync } from 'node:fs'
+import { closeSync, constants, fstatSync, lstatSync, openSync, readSync, readdirSync, realpathSync, statSync } from 'node:fs'
 import { isAbsolute, join, relative, sep } from 'node:path'
 import { isDefaultExcludedPath, normalizeWorkspacePath } from './quality-gates.ts'
 import type { ArtifactDigest, ArtifactScopeGap, ArtifactSnapshot } from './types.ts'
+import type { OutcomePreview } from './outcomes.ts'
+
+/** Bounded current-file preview. No directory/glob expansion, symlinks, or active document execution. */
+export function readOutcomePreview(workspace: string, path: string): OutcomePreview {
+  const result: OutcomePreview = { path, status: 'blocked' }
+  const normalized = normalizeWorkspacePath(path)
+  if (!normalized || /[*?\[\]{}:\x00-\x1f]/.test(normalized) || normalized.split('/').some(s => /[. ]$/.test(s)) || isSkipped(normalized.toLowerCase())) return result
+  const root = workspaceRootOf(workspace)
+  if (!root) return { ...result, status: 'unreadable' }
+  let handle: number | undefined
+  try {
+    let absolute = root
+    // Reject aliases too: a declared public symlink must not expose an excluded target.
+    for (const segment of normalized.split('/')) {
+      absolute = join(absolute, segment)
+      if (lstatSync(absolute).isSymbolicLink()) return result
+    }
+    const canonical = realpathSync(absolute)
+    if (!insideRoot(root, canonical) || isSkipped(relative(root, canonical).split(sep).join('/').toLowerCase())) return result
+    if (!lstatSync(canonical).isFile()) return result
+    handle = openSync(canonical, constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0) | (constants.O_NONBLOCK ?? 0))
+    const stat = fstatSync(handle)
+    if (!stat.isFile() || realpathSync(absolute) !== canonical) return result
+    const current = statSync(canonical)
+    if (current.dev !== stat.dev || current.ino !== stat.ino) return result
+    result.size = stat.size; result.modifiedAt = stat.mtimeMs
+    const ext = normalized.toLowerCase().split('.').at(-1) ?? ''
+    const mime = ({png:'image/png',jpg:'image/jpeg',jpeg:'image/jpeg',gif:'image/gif',webp:'image/webp'} as Record<string,string>)[ext]
+    const textual = ['md','markdown','txt','csv','json','log','yaml','yml','toml','xml','html','htm','css','js','jsx','mjs','ts','tsx','py','sh','ps1','sql','rs','go','java','c','cpp','h','ini'].includes(ext)
+    if (!mime && !textual) return { ...result, status: 'unsupported' }
+    const limit = mime ? 4 * 1024 * 1024 : 256 * 1024
+    if (stat.size > limit) return { ...result, status: 'too_large' }
+    const buffer = Buffer.alloc(stat.size)
+    let offset = 0
+    while (offset < buffer.length) { const n = readSync(handle, buffer, offset, buffer.length - offset, null); if (!n) break; offset += n }
+    const after = fstatSync(handle)
+    if (offset !== stat.size || after.size !== stat.size || after.mtimeMs !== stat.mtimeMs || realpathSync(absolute) !== canonical) return { ...result, status: 'unreadable' }
+    const sha256 = createHash('sha256').update(buffer).digest('hex')
+    if (mime) {
+      const signature = mime === 'image/png' ? buffer.subarray(0,8).equals(Buffer.from([137,80,78,71,13,10,26,10])) : mime === 'image/jpeg' ? buffer[0] === 255 && buffer[1] === 216 && buffer[2] === 255 : mime === 'image/gif' ? /^GIF8[79]a$/.test(buffer.subarray(0,6).toString('ascii')) : buffer.subarray(0,4).toString('ascii') === 'RIFF' && buffer.subarray(8,12).toString('ascii') === 'WEBP'
+      if (!signature) return { ...result, status: 'unsupported' }
+      return { ...result, status: 'ready', kind: 'image', sha256, dataUrl: `data:${mime};base64,${buffer.toString('base64')}` }
+    }
+    let text: string
+    try { text = new TextDecoder('utf-8', { fatal: true }).decode(buffer) } catch { return { ...result, status: 'unsupported' } }
+    if (text.includes('\0')) return { ...result, status: 'unsupported' }
+    return { ...result, status: 'ready', sha256, kind: ['md','markdown'].includes(ext) ? 'markdown' : ext === 'csv' ? 'csv' : 'text', text }
+  } catch (error) { return { ...result, status: ['ENOENT','ENOTDIR'].includes(errorCode(error)) ? 'missing' : 'unreadable' } }
+  finally { if (handle !== undefined) closeSync(handle) }
+}
 
 /**
  * Directory segments never walked when a scope pattern names a directory:

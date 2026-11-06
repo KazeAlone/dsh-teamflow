@@ -25,6 +25,9 @@
  * @module dsh-agent-teams/artifacts
  */
 import type { ArtifactDigest, ArtifactScopeGap, ArtifactSnapshot } from './types.ts';
+import type { OutcomePreview } from './outcomes.ts';
+/** Bounded current-file preview. No directory/glob expansion, symlinks, or active document execution. */
+export declare function readOutcomePreview(workspace: string, path: string): OutcomePreview;
 /**
  * Upper bound on files expanded from one scope. Verdicts are about a revision
  * and an unbounded walk of a large tree would make every gate close slow, so

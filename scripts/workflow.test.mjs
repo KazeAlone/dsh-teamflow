@@ -44,7 +44,7 @@ async function lifecycleFixture(t, source, options = {}) {
     await route.handler(req,{writeHead:c=>{code=c},end:body=>{value=JSON.parse(body)}})
     return {code,...value}
   }
-  return {read,call,dispatched,save:state=>writeTeam(stateRoot,state),kick:()=>scheduler.kickTeam(root,source.id,captain)}
+  return {workspace:root,read,call,dispatched,save:state=>writeTeam(stateRoot,state),kick:()=>scheduler.kickTeam(root,source.id,captain)}
 }
 
 test('manual and approved AI additions share the first-start boundary for work and reviews', async t => {
@@ -1248,3 +1248,22 @@ test('mismatched material snapshots never mutate the checkpoint', () => {
   assert.throws(()=>decideCheckpoint(source,'gate','approve','hash','hash','', '{}'),/材料已变化/)
   assert.deepEqual(source,before)
 })
+
+
+test('outcome preview reads only declared files without dispatching or changing state', async t => {
+  const source=team();source.tasks[0].deliverables=['report.md'];source.tasks[0].changedPaths=['changed.txt'];
+  const f=await lifecycleFixture(t,source);writeFileSync(join(f.workspace,'report.md'),'# Current report');
+  const before=await f.read();
+  const result=await f.call('outcome_preview',{taskId:'t1',path:'report.md'});
+  assert.equal(result.code,200);assert.equal(result.preview.text,'# Current report');
+  assert.equal((await f.call('outcome_preview',{taskId:'t1',path:'changed.txt'})).preview.status,'missing');
+  assert.equal((await f.call('outcome_preview',{taskId:'t1',path:'other.md'})).code,409);
+  assert.equal((await f.call('outcome_preview',{taskId:'other',path:'report.md'})).code,409);
+  assert.equal((await f.call('outcome_preview',{sessionId:'outsider',taskId:'t1',path:'report.md'})).code,409);
+  assert.deepEqual(await f.read(),before);assert.equal(f.dispatched.length,0);
+  await createTeamDir(join(f.workspace,'.agent-teams','archive'),source);
+  assert.equal((await f.call('outcome_preview',{taskId:'t1',path:'report.md',archived:true})).preview.text,'# Current report');
+  assert.equal(f.dispatched.length,0);
+  source.captainSessionId='someone-else';await f.save(source);
+  assert.equal((await f.call('outcome_preview',{taskId:'t1',path:'report.md'})).code,409);
+});

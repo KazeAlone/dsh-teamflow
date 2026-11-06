@@ -1,3 +1,5 @@
+import {readOutcomePreview} from '../lib/artifacts.js';
+import {outcomeFiles} from '../lib/outcomes.js';
 import {resumeRerunPath,resetTaskForRerun} from '../lib/task-rerun.js';
 import { builtinTemplates, getBuiltinTemplate } from '../lib/builtin-templates.js';
 import { localizeBuiltinTemplate } from '../lib/builtin-template-locales.js';
@@ -58,6 +60,15 @@ let team = {
     { id: 't3', subject: '开发与自测', description: '仅在需求通过后执行', assignee: 'developer', dependencies: ['t2'], status: 'pending', attempt: 0, createdAt: 1, updatedAt: 1 },
   ],
 };
+const outcomeRoot=resolve('output/outcome-showcase/workspace');
+if(process.env.TEAMFLOW_PREVIEW_OUTCOMES){
+  mkdirSync(outcomeRoot,{recursive:true});
+  writeFileSync(resolve(outcomeRoot,'report.md'),'# CSV 导出交付\n\n- 中文编码验证完成\n- 特殊字符往返读取通过\n\n<script>window.previewExecuted=true</script>');
+  writeFileSync(resolve(outcomeRoot,'orders.csv'),'订单,备注,金额\r\n1001,"含逗号,引号""与换行\n第二行",128\r\n1002,正常订单,256');
+  writeFileSync(resolve(outcomeRoot,'preview.png'),Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aWQAAAABJRU5ErkJggg==','base64'));
+  team.name='CSV 导出 · 成果展台';
+  Object.assign(team.tasks[0],{subject:'实现与验证 CSV 导出',deliverables:['report.md','orders.csv','preview.png','missing.md'],changedPaths:['report.md'],output:'# 交付说明\n\n已实现 CSV 导出，包含中文、引号和换行处理。\n\n- 调研报告：report.md\n- 导出样例：orders.csv',commandsRun:[{command:'node --test csv.test.mjs',status:'passed',evidence:'6 tests passed'}],stoppedAttempts:[{at:Date.now()-60000,status:'completed',output:'上一轮：编码待修复。'}]});
+}
 if (process.env.TEAMFLOW_PREVIEW_REVIEW) {
   team.name = 'CSV 导出 · 验收工作台';
   Object.assign(team.tasks[0], { subject:'实现与验证 CSV 导出', output:'已提交字段、编码和权限验证记录；大数据量验证待补充。', acceptanceResults:[
@@ -133,6 +144,7 @@ createServer(async (req, res) => {
     let raw = ''; for await (const chunk of req) raw += chunk;
     const body = JSON.parse(raw), key = body.discussion || 'graph';
     const messages = previewMessages(key);
+    if(body.action==='outcome_preview'){const task=team.tasks.find(t=>t.id===body.taskId);if(!task||!outcomeFiles(task).some(f=>f.path===body.path)){send(res,400,{error:'Undeclared file'});return;}send(res,200,{preview:readOutcomePreview(outcomeRoot,body.path)});return;}
     if(body.action==='template_list'){send(res,200,{templates:[...builtinTemplates(),...library],warnings:[],context:'实现算子 B，验证正确性和性能。'});return}
     if(body.action==='template_seed'){send(res,200,{definition:templateSeed(team),base:workflowFingerprint(team)});return}
     if(body.action==='template_save'){const old=library.find(t=>t.id===body.templateId);const saved={...body.definition,id:old?.id??crypto.randomUUID(),version:(old?.version??0)+1,createdAt:Date.now(),updatedAt:Date.now()};library=library.filter(t=>t.id!==saved.id).concat(saved);send(res,200,{template:saved});return}
