@@ -137,7 +137,7 @@ test('pause all fences the entire chain before draining, retains results and rec
   assert.equal(f.dispatched.length,1,'only the root is eligible after restarting')
 })
 
-test('start all preserves configuration, rejected reviews, rerun confirmation and terminal results', async t => {
+test('start all confirms reruns while preserving configuration, rejected reviews and terminal results', async t => {
   const source=withGate();source.tasks[0].status='completed';source.tasks[0].output='Keep result'
   source.tasks[1].checkpoint.decision='reject'
   source.tasks[2].workflowPaused=true
@@ -151,9 +151,11 @@ test('start all preserves configuration, rejected reviews, rerun confirmation an
   assert.equal(response.team.tasks[1].checkpoint.decision,'reject')
   assert.equal(response.team.tasks[2].workflowPaused,false)
   assert.equal(taskControlState(response.team,response.team.tasks[2]).label,'task.control.blocked')
-  for(const id of ['draft','rerun']) assert.equal(response.team.tasks.find(item=>item.id===id).workflowPaused,true)
+  assert.equal(response.team.tasks.find(item=>item.id==='draft').workflowPaused,true)
+  assert.equal(response.team.tasks.find(item=>item.id==='rerun').workflowPaused,false)
+  assert.equal(response.team.tasks.find(item=>item.id==='rerun').workflowRerunRequired,false)
   assert.equal(response.team.tasks.at(-1).status,'failed')
-  assert.equal(f.dispatched.length,0)
+  assert.equal(f.dispatched.length,1)
   assert.equal(checkpointReady({...source,tasks:[{...source.tasks[1],checkpoint:{round:1,history:[]},dependencies:[],workflowRerunRequired:true}]},{...source.tasks[1],checkpoint:{round:1,history:[]},dependencies:[],workflowRerunRequired:true}),false)
 })
 
@@ -1302,4 +1304,23 @@ test('returned review repair reruns source, then resumes gate path without relea
  assert.equal(state.team.tasks.find(t=>t.id==='gate').checkpoint.decision,undefined);
  state=await f.call('review',{taskId:'gate',decision:'approve',evidence:state.team.workflow.discussions['discussion:check:gate'].evidence});assert.equal(state.code,200,state.error);
  assert.equal(state.team.tasks.find(t=>t.id==='after').workflowPaused,true);
+});
+
+
+test('start all releases a rerun chain once, approval dispatches downstream, pause all stops continuation',async t=>{
+ const source=withGate();source.tasks[0].status='completed';source.tasks[0].output='Old result';
+ const f=await lifecycleFixture(t,source);let state=await f.call('state');
+ state=await f.call('edit',{base:state.base,title:'Repair',operations:[{action:'rerun_task',id:'t1',instructions:'Fix result'}]});assert.equal(state.code,200,state.error);
+ assert.equal(flowControlState(state.team).canStart,true,'pending reruns must enable Start all');
+ state=await f.call('set_flow_enabled',{enabled:true,version:flowControlVersion(state.team)});assert.equal(state.code,200,state.error);
+ for(const id of ['gate','after']){const task=state.team.tasks.find(t=>t.id===id);assert.equal(task.workflowPaused,false);assert.equal(task.workflowRerunRequired,false);}
+ assert.equal(f.dispatched.filter(args=>args[3].includes('Task: after')).length,0,'human review blocks downstream');
+ let completed=await f.read();completed.tasks[0].status='completed';completed.tasks[0].output='Fixed';await f.save(completed);
+ state=await f.call('materials',{discussion:'check:gate'});assert.equal(state.code,200,state.error);
+ state=await f.call('review',{taskId:'gate',decision:'approve',evidence:state.team.workflow.discussions['discussion:check:gate'].evidence});assert.equal(state.code,200,state.error);
+ assert.equal(f.dispatched.filter(args=>args[3].includes('Task: after')).length,1,'approval automatically dispatches the next task without another start');
+ assert.equal(flowControlState(state.team).canPause,true);
+ state=await f.call('set_flow_enabled',{enabled:false,version:flowControlVersion(state.team)});assert.equal(state.code,200,state.error);
+ assert.equal(state.team.tasks.find(t=>t.id==='after').workflowPaused,true);const count=f.dispatched.length;await f.kick();assert.equal(f.dispatched.length,count);
+ state=await f.call('set_flow_enabled',{enabled:true,version:flowControlVersion(state.team)});assert.equal(state.code,200,state.error);assert.equal(state.team.tasks.find(t=>t.id==='after').workflowPaused,false);
 });

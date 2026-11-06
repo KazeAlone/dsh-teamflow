@@ -41,7 +41,8 @@ export function flowControlVersion(team: ControlTeam): string {
 }
 
 export function flowControlState(team: ControlTeam) {
-  const controls = team.tasks.map(task => taskControlState(team, task))
+  // Global start explicitly confirms pending reruns; individual node controls remain guarded.
+  const controls = team.tasks.map(task => taskControlState(team, {...task, workflowPaused:task.workflowPaused||task.workflowRerunRequired, workflowRerunRequired:false}))
   return {
     canStart: !team.halted && team.phase !== 'staged' && !controls.some(c => c.stopping) && controls.some(c => !c.disabled && !c.checked),
     canPause: !team.halted && team.phase !== 'staged' && controls.some(c => !c.disabled && (c.checked || c.stopping)),

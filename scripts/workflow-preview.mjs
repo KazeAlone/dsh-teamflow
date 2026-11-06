@@ -171,9 +171,9 @@ createServer(async (req, res) => {
     if (body.action === 'set_flow_enabled') {
       if (body.version !== flowControlVersion(team) || typeof body.enabled !== 'boolean') throw Error('流程状态已变化');
       for (const task of team.tasks) {
-        if (['completed','failed','cancelled'].includes(task.status) || task.checkpoint?.decision || task.workflowConfigPending || task.workflowRerunRequired) continue;
-        if (body.enabled ? !task.workflowPaused : task.workflowPaused && !['claimed','in_progress'].includes(task.status)) continue;
-        task.workflowPaused=!body.enabled;task.workflowAwaitingStart=false;task.updatedAt=Date.now();
+        if (['completed','failed','cancelled'].includes(task.status) || task.checkpoint?.decision || task.workflowConfigPending) continue;
+        if (body.enabled ? !task.workflowPaused && !task.workflowRerunRequired : task.workflowPaused && !['claimed','in_progress'].includes(task.status)) continue;
+        task.workflowPaused=!body.enabled;task.workflowAwaitingStart=false;if(body.enabled)task.workflowRerunRequired=false;task.updatedAt=Date.now();
         if (!body.enabled) task.status='pending';
       }
     }
