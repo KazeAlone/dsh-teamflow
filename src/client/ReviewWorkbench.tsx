@@ -40,6 +40,17 @@ export function ReviewWorkbench({ team, task, conversation, ready, archived, bus
   const prior = parseReviewMaterial(priorEntry?.materials)
   const changes = validMaterial && prior?.check.id === task.id ? reviewChanges(prior, validMaterial) : undefined
   const canDecide = !historical && !archived && ready && !checkpoint.decision && !!validMaterial && !!conversation?.evidence && conversation.materialsRound === checkpoint.round
+  const autoMaterials = useRef('')
+  useEffect(() => {
+    if (historical || archived || checkpoint.decision || !ready) { autoMaterials.current=''; return }
+    if (busy || (validMaterial && conversation?.evidence && conversation.materialsRound===checkpoint.round)) return
+    const key=team.id+':'+task.id+':'+checkpoint.round
+    if(autoMaterials.current===key)return
+    // One attempt per ready round. A failed read is retried explicitly, not on every poll.
+    autoMaterials.current=key;onRefresh()
+  },[team.id,task.id,checkpoint.round,checkpoint.decision,ready,historical,archived,busy,validMaterial,conversation?.evidence,conversation?.materialsRound,onRefresh])
+  const decisionBlock = busy ? l('正在更新验收材料或状态，请稍候。') : !ready ? taskReadiness(team,task,l).detail : !canDecide ? l('本轮验收材料尚未就绪；正在首次加载，读取失败时请点击「刷新验收材料」重试。') : undefined
+
   const issues = validMaterial ? validMaterial.results.flatMap(r => [...r.acceptanceResults, ...r.commandsRun]).filter(r => r.status === 'failed').length + validMaterial.files.filter(f => !f.present || f.unreadable).length + validMaterial.gaps.length : 0
   const downstream = team.tasks.filter(t => t.dependencies.includes(task.id))
   useEffect(() => { setConfirm(undefined); setError('') }, [conversation?.evidence, checkpoint.round, checkpoint.decision, ready, round])
@@ -88,6 +99,7 @@ export function ReviewWorkbench({ team, task, conversation, ready, archived, bus
     {!historical && <details className={css.discussion}><summary>{l('与 AI 讨论验收')}</summary>{archived ? <p>{l('恢复并编辑流程后可继续讨论。')}</p> : <>{discussion ?? <button disabled={busy} onClick={onDiscuss}><WorkflowIcon name="chat" />{l(conversation?.native ? '继续在此处讨论' : '在此处开始讨论')}</button>}<p className={css.hint}>{l('讨论使用整个检查点的上下文；聊天不会写入审批决定。')}</p>{onRestart && <details><summary>{l('重新开始讨论')}</summary><p>{l('新建独立讨论会归档当前讨论，从当前资料重新开始。')}</p><button disabled={busy || discussionBusy} onClick={onRestart}>{l('新建独立讨论')}</button></details>}</>}</details>}
     {!historical && !archived && proposal}
     {!historical && !archived && !checkpoint.decision && <footer className={css.decision}><div className={css.footerTitle}><strong>{l('你的验收决定')}</strong><button disabled={busy || !ready} onClick={onRefresh}>{l('刷新验收材料')}</button></div><label>{l('验收意见（随决定保存）')}<textarea aria-label={l('验收意见')} value={note} maxLength={16000} onChange={e => { onNote(e.target.value); setConfirm(undefined) }} placeholder={l('记录通过或退回的原因…')} /></label><p className={css.hint}>{l('通过后，下游仍按依赖与暂停状态调度：')}{downstream.map(t => t.subject).join('、') || l('无')}</p>
+      {decisionBlock && <p className={css.notice} role="status">{decisionBlock}</p>}
       {issues > 0 && <p className={css.notice}>{l('当前材料有 {0} 项失败记录或文件读取缺口，请核实后决定。', issues)}</p>}
       {error && <p role="alert" className={css.notice}>{error}</p>}
       <div className={css.actions}><button disabled={busy || !canDecide} onClick={() => void decide('reject')}>{l('退回修改')}</button><button className={css.primary} disabled={busy || !canDecide} onClick={() => setConfirm({ evidence: conversation!.evidence!, round: checkpoint.round })}>{l('通过验收')}</button></div>

@@ -197,7 +197,7 @@ createServer(async (req, res) => {
       task.workflowPaused=stopping;task.workflowAwaitingStart=false;task.updatedAt=Date.now();
     }
     // Explicit fixture mode: simulate successful work; never calls a real model.
-    if (process.env.TEAMFLOW_PREVIEW_RERUN || process.env.TEAMFLOW_PREVIEW_REPAIR) for(const task of team.tasks) if(task.status==='pending' && !task.checkpoint && !task.workflowPaused && task.dependencies.every(id=>team.tasks.find(item=>item.id===id)?.status==='completed')) {task.status='completed';task.attempt=(task.attempt??0)+1;task.output='模拟重跑结果：已按最新要求重新执行。'}
+    if (process.env.TEAMFLOW_PREVIEW_RERUN || process.env.TEAMFLOW_PREVIEW_REPAIR) for(const task of team.tasks) if(task.status==='pending' && !task.checkpoint && !task.workflowPaused && (!process.env.TEAMFLOW_PREVIEW_REPAIR_DELAY_MS || Date.now()-task.updatedAt>=Number(process.env.TEAMFLOW_PREVIEW_REPAIR_DELAY_MS)) && task.dependencies.every(id=>team.tasks.find(item=>item.id===id)?.status==='completed')) {task.status='completed';task.attempt=(task.attempt??0)+1;task.output='模拟重跑结果：已按最新要求重新执行。'}
     if (body.action === 'dismiss' && discussion.proposal) discussion.proposal.status = 'dismissed';
     if (body.action === 'layout') for (const [id, point] of Object.entries(body.positions ?? { [body.taskId]: { x: body.x, y: body.y } })) state.positions[`task:${id}`] = point;
     if (body.action === 'start') team.phase = 'running';
