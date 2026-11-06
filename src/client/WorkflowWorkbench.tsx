@@ -28,6 +28,7 @@ import { awaitsFirstStart } from '../task-start-state.ts'
 import { IconBranchOutline16, WorkflowIcon } from './icons.tsx'
 import { BrandIcon } from './BrandIcon.tsx'
 import { TemplateGallery } from './TemplateGallery.tsx'
+import { ReviewWorkbench } from './ReviewWorkbench.tsx'
 
 interface Response { team: TeamState; base: string; ready: string[]; busy: string[]; openedSessionId?: string; currentDiscussion?: string; activity?:ActivityTeam }
 async function request(payload: Record<string, unknown>): Promise<Response | undefined> {
@@ -95,7 +96,7 @@ function Workbench({ sessionId, teamId, archived = false, waitingCount = 0, open
   const [saveState, setSaveState] = useState<'saved' | 'saving' | 'error'>('saved')
   const [storageError, setStorageError] = useState('')
   const loadedDraftScope = useRef<string>()
-  const [note, setNote] = useState('')
+  const [reviewNotes, setReviewNotes] = useState<Record<string, string>>({})
   const [embeddedDiscussion, setEmbeddedDiscussion] = useState<string>()
   const [pane, setPane] = useState<'members' | 'flow' | 'discussion'>('flow')
   const [name, setName] = useState<string>()
@@ -136,6 +137,10 @@ function Workbench({ sessionId, teamId, archived = false, waitingCount = 0, open
   const reviewingTemplate = discussion === 'adapt' && !!proposal
   const MessageArea = reviewingTemplate ? 'details' : 'div'
   const reviewTask = discussion.startsWith('check:') ? team?.tasks.find(t => t.id === discussion.slice(6)) : undefined
+  const reviewScope = `${team?.id}:${reviewTask?.id}:${reviewTask?.checkpoint?.round}`
+  const note = reviewNotes[reviewScope] ?? ''
+  const setNote = (value: string) => setReviewNotes(notes => ({ ...notes, [reviewScope]: value }))
+  const reviewingCheckpoint = !!reviewTask && !editor && !selectedTask && !selectedEdge
   const discussionTask = discussion.startsWith('task:') ? team?.tasks.find(t => t.id === discussion.slice(5) && !t.checkpoint) : undefined
   const activeTask = team?.tasks.find(t => t.id === selectedTask)
   const terminalEdit = !!editor && editor.type !== 'member' && !!activeTask && !activeTask.checkpoint && ['completed','failed','cancelled'].includes(activeTask.status)
@@ -179,7 +184,7 @@ function Workbench({ sessionId, teamId, archived = false, waitingCount = 0, open
     if (!task) { setError(l("节点已不存在，请刷新任务列表")); return }
     choose({type:task.checkpoint ? 'check' : 'task',id:task.id})
     if (entryTarget.rerun && !archiveView && !team.halted && team.phase !== 'staged' && !task.checkpoint && ['completed','failed','cancelled'].includes(task.status)) setEditing(true)
-    if (entryTarget.review && data?.ready.includes(task.id)) void openReview(task.id)
+    if (entryTarget.review && task.checkpoint) void openReview(task.id)
   }, [team,entryTarget])
   useEffect(() => {
     if (!entryDiscussion || entryOpened.current || !team) return
@@ -512,12 +517,11 @@ function Workbench({ sessionId, teamId, archived = false, waitingCount = 0, open
   }
   async function openReview(id: string): Promise<void> {
     setGalleryMode(undefined); setEditing(false); setOpened(true)
+    setInspectorWidth(width => Math.max(width, 640))
     selectDiscussion(`check:${id}`); scrollToTask(id)
     focusAttention('[data-review-heading]')
-    const revision=viewRef.current.revision
-    if (await perform('materials', { discussion: `check:${id}` }) && revision===viewRef.current.revision) {
-      setOpened(true); await startEmbedded(`check:${id}`)
-    }
+    // Reading a gate never starts a model turn or writes to an archive/decided round.
+    if (!archiveView && data?.ready.includes(id)) await perform('materials', { discussion: `check:${id}` })
   }
   function renderProposalReview() {
     if (!proposal || !team || !data) return null
@@ -535,7 +539,7 @@ function Workbench({ sessionId, teamId, archived = false, waitingCount = 0, open
   const reviewNotice = !archiveView && !!data?.ready.length && <div className={css.reviewNotice} role="status" aria-label={l("等待你验收")}>
     <strong><span className={css.reviewDot} aria-hidden />{l("等待你验收")}</strong>
     {data.ready.map(id => <button type="button" key={id} disabled={working} onClick={() => void openReview(id)}>{l("验收 · ")}{team?.tasks.find(t => t.id === id)?.subject} ↗</button>)}
-    {!reviewEntryOnly && <small>{l("上游已完成 · 打开独立对话查看材料与 AI 总结")}</small>}
+    {!reviewEntryOnly && <small>{l("上游已完成 · 打开验收工作台核对证据")}</small>}
   </div>
   const adaptation = pendingProposals.find(item => item.key === 'adapt' && item.proposal?.base === data?.base)?.proposal
   const proposedTasks = new Set(adaptation?.operations.flatMap(op => op.action === 'update_task' ? [op.id] : []))
@@ -628,7 +632,7 @@ function Workbench({ sessionId, teamId, archived = false, waitingCount = 0, open
       {!activeId ? <form className={css.create} onSubmit={e => { e.preventDefault(); void createFlow() }}>
         <h2>{l("描述目标，一起规划团队")}</h2><p>{l("已有适合的流程？")}<button type="button" onClick={()=>setGalleryMode('browse')}><BrandIcon name="gallery"/>{l("从模板开始")}</button></p><label>{l("团队名称")}<input required value={name ?? l('新团队')} placeholder={l("新团队")} onChange={e => setName(e.target.value)} /></label>
         <label>{l("团队目标")}<textarea required value={goal} onChange={e => setGoal(e.target.value)} /></label><button className={css.primary} disabled={working}>{l("在 DSH 中讨论方案 ↗")}</button>
-      </form> : !team ? <p role="status">{l("正在读取团队…")}</p> : <div className={css.columns} style={{ '--inspector-width': `${inspectorWidth}px` } as CSSProperties} data-inspector-hidden={inspectorHidden} data-inspector-expanded={inspectorExpanded} data-pane={pane} data-editing={!!editor || !!selectedEdge || !!activeTask}>
+      </form> : !team ? <p role="status">{l("正在读取团队…")}</p> : <div className={css.columns} style={{ '--inspector-width': `${inspectorWidth}px` } as CSSProperties} data-reviewing={reviewingCheckpoint} data-inspector-hidden={inspectorHidden} data-inspector-expanded={inspectorExpanded} data-pane={pane} data-editing={!!editor || !!selectedEdge || !!activeTask}>
         <aside className={css.roster} aria-label={l("对象列表")}>
           <nav className={css.libraryTabs} aria-label={l("对象分类")}><button aria-pressed={library === 'tasks'} onClick={() => setLibrary('tasks')}><WorkflowIcon name="task" />{l("任务 ")}{team.tasks.length}</button><button aria-pressed={library === 'agents'} onClick={() => setLibrary('agents')}><WorkflowIcon name="agent" />Agent {team.members.filter(m => archiveView || m.status !== 'removed').length}</button></nav>
           {library === 'tasks' ? <section className={css.taskList}><h3>{l("任务流程")}</h3><p className={css.hint}>{l("任务决定做什么，Agent 决定由谁执行。")}</p>{team.tasks.map(task => <button key={task.id} data-kind={task.checkpoint ? 'check' : 'task'} aria-pressed={selectedTask === task.id} onClick={() => {
@@ -694,7 +698,7 @@ function Workbench({ sessionId, teamId, archived = false, waitingCount = 0, open
           <footer className={css.canvasStatus} role="status">{link ? link.issue ?? (link.to ? l("已吸附 · 松开连接") : l("拖到下游节点 · Esc 取消")) : l("{0} 个任务节点 · {1} · 滚轮缩放（以鼠标位置为中心）{2}", team.tasks.length, editing ? l("拖动空白处平移") : l("拖动画布平移"), editing ? l(" · 靠近节点显示圆点，拖动连线 · Delete 删除") : l(" · 单击节点查看详情"))}</footer>
         </main>
         <div className={css.resizeHandle} role="separator" aria-label={l("调整右侧面板宽度")} aria-orientation="vertical" aria-valuemin={300} aria-valuemax={720} aria-valuenow={inspectorWidth} tabIndex={inspectorHidden ? -1 : 0} onPointerDown={resizeInspector} onKeyDown={event => { if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') { event.preventDefault(); setInspectorExpanded(false); setInspectorWidth(value => Math.max(300, Math.min(720, value + (event.key === 'ArrowLeft' ? 40 : -40)))) } }} />
-        <section className={css.inspector} aria-label={l("属性与讨论面板")}><header className={css.inspectorHeader}><strong>{editor ? l("编辑属性") : activeTask || selectedEdge ? l("节点与连接") : l("讨论与验收")}</strong><button aria-pressed={inspectorExpanded} onClick={() => setInspectorExpanded(!inspectorExpanded)}>{inspectorExpanded ? l("还原面板") : l("放大面板")}</button></header>
+        <section className={css.inspector} aria-label={l("属性与讨论面板")}><header className={css.inspectorHeader}><strong>{reviewingCheckpoint ? l("验收工作台") : editor ? l("编辑属性") : activeTask || selectedEdge ? l("节点与连接") : l("讨论与验收")}</strong><button aria-pressed={inspectorExpanded} onClick={() => setInspectorExpanded(!inspectorExpanded)}>{inspectorExpanded ? l("还原面板") : l("放大面板")}</button></header>
           {selectedEdge && <aside className={css.editor} aria-label={l("交接详情")}><strong>{team.tasks.find(task => task.id === selectedEdge.from)?.subject} → {team.tasks.find(task => task.id === selectedEdge.to)?.subject}</strong><p>{l("上游完成后，下游才开始。编辑时按 Delete 删除；已开始的下游需先停止。")}</p><button disabled={working || archiveView || !editing} onClick={() => void deleteEdge()}>{l("删除连线")}</button></aside>}
           {activeTask && !editor && !selectedEdge && <aside className={css.editor} aria-label={activeTask.checkpoint ? l("人工验收属性") : l("任务属性")}><header className={css.taskHeading}>
             <small>{activeTask.checkpoint ? l("人工验收属性") : l("任务属性")} · {activeTask.id}</small>
@@ -708,10 +712,23 @@ function Workbench({ sessionId, teamId, archived = false, waitingCount = 0, open
             {!archiveView && !activeTask.checkpoint && <button className={css.primary} disabled={working} onClick={() => void startEmbedded(`task:${activeTask.id}`)}><WorkflowIcon name="chat" />{l("与 AI 讨论任务")}</button>}
             {!archiveView && !activeTask.checkpoint && activeTask.assignee && rerunnableTasks(team.tasks, activeTask.assignee).some(task => task.id === activeTask.id) && <button disabled={working} onClick={() => { edit('member', activeTask.assignee, {rerunTaskId:activeTask.id}) }}>{l("修改负责人并重跑此任务")}</button>}
           </div><TaskRecord task={activeTask} team={team} showContract={false} />
-            {!archiveView && activeTask.checkpoint && data.ready.includes(activeTask.id) && <button className={css.primary} disabled={working} onClick={() => void openReview(activeTask.id)}>{l("开始验收")}</button>}
+            {activeTask.checkpoint && <button className={css.primary} disabled={working} onClick={() => void openReview(activeTask.id)}>{data.ready.includes(activeTask.id) && !archiveView ? l("开始验收") : l("查看验收工作台")}</button>}
           </aside>}
 
-        {!editor && !selectedEdge && !activeTask && <aside className={css.discussion} data-template-review={reviewingTemplate}><header><img src={reviewTask ? REVIEW_ART : member ? memberArtUrl(member.name, member.role ?? '') : LEAD_ART} alt="" /><div><h3 data-review-heading tabIndex={-1}>{reviewTask ? l("验收 · {0}", reviewTask.subject) : discussionTask ? l("任务讨论 · {0}", discussionTask.subject) : member ? l("成员职责 · {0}", member.name) : reviewingTemplate ? l("统一适配本次任务") : l("流程修改")}</h3>
+        {reviewingCheckpoint && reviewTask && <ReviewWorkbench key={`${team.id}:${reviewTask.id}:${reviewTask.checkpoint?.round}`} team={team} task={reviewTask} conversation={conversation} ready={data.ready.includes(reviewTask.id)} archived={archiveView} busy={working} note={note} onNote={setNote}
+          onBack={() => locateTask(reviewTask.id)} onRefresh={() => void perform('materials', { discussion })}
+          onDecision={async (decision, evidence, submittedNote) => {
+            const scope = reviewScope
+            const result = await perform('review', { taskId: reviewTask.id, discussion, evidence, decision, note: submittedNote })
+            if (result) setReviewNotes(notes => notes[scope] === submittedNote ? { ...notes, [scope]: '' } : notes)
+            return !!result
+          }}
+          onDiscuss={() => void startEmbedded(discussion)}
+          onRestart={!data.currentDiscussion ? () => void startEmbedded(discussion, activeId, true) : undefined} discussionBusy={data.busy.includes(discussion)}
+          discussion={embeddedDiscussion === discussion && activeId ? <EmbeddedDiscussion key={`${activeId}:${discussion}:${conversation?.native?.sessionId}`} sessionId={sessionId} teamId={activeId} discussion={discussion} /> : undefined}
+          proposal={proposal ? <section className={css.proposal}>{renderProposalReview()}</section> : undefined}
+        />}
+        {!editor && !selectedEdge && !activeTask && !reviewingCheckpoint && <aside className={css.discussion} data-template-review={reviewingTemplate}><header><img src={reviewTask ? REVIEW_ART : member ? memberArtUrl(member.name, member.role ?? '') : LEAD_ART} alt="" /><div><h3 data-review-heading tabIndex={-1}>{reviewTask ? l("验收 · {0}", reviewTask.subject) : discussionTask ? l("任务讨论 · {0}", discussionTask.subject) : member ? l("成员职责 · {0}", member.name) : reviewingTemplate ? l("统一适配本次任务") : l("流程修改")}</h3>
           <small>{reviewTask ? l("一起检查成果，由你决定是否通过") : l("讨论不影响执行，修改确认后生效")}</small></div></header>
           <MessageArea className={css.messages}>
             {reviewingTemplate && <summary>{l("讨论记录与资料")}</summary>}
@@ -723,12 +740,6 @@ function Workbench({ sessionId, teamId, archived = false, waitingCount = 0, open
             {embeddedDiscussion !== discussion && data.busy.includes(discussion) && <p role="status">{l("原生对话正在整理方案…")}</p>}
           </MessageArea>
           {!archiveView && proposal && <section className={css.proposal}>{renderProposalReview()}</section>}
-          {!archiveView && reviewTask && conversation?.evidence && conversation.materialsRound === reviewTask.checkpoint?.round && data.ready.includes(reviewTask.id) && !reviewTask.checkpoint?.decision && <div className={css.decisions}>
-            <button className={css.primary} disabled={working} onClick={() => void perform('review', { taskId: reviewTask.id, evidence: conversation.evidence, decision: 'approve', note }).then(ok => { if (ok) setNote('') })}>{l("通过验收")}</button>
-            <button disabled={working} onClick={() => void perform('review', { taskId: reviewTask.id, evidence: conversation.evidence, decision: 'reject', note }).then(ok => { if (ok) { setNote(''); void startEmbedded(discussion) } })}>{l("退回并讨论返工")}</button>
-          </div>}
-          {reviewTask?.checkpoint?.decision === 'reject' && <p className={css.notice}>{l("已退回，下游保持等待。可将新返工节点连入此审核节点，自动进入下一轮审核；也可讨论返工对象并确认新方案。")}</p>}
-          {!archiveView && reviewTask && <div className={css.composer}><label>{l("验收意见（随决定保存）")}<textarea aria-label={l("验收意见")} value={note} onChange={e => setNote(e.target.value)} placeholder={l("记录通过或退回的原因…")} /></label><button disabled={working || !data.ready.includes(reviewTask.id)} onClick={() => void perform('materials')}>{l("刷新验收材料")}</button></div>}
           {!archiveView && !data.currentDiscussion && <details><summary>{l("重新开始讨论")}</summary><p className={css.hint}>{l("新建独立讨论会归档当前讨论，从当前资料重新开始。")}</p><button disabled={working || data.busy.includes(discussion)} onClick={() => void startEmbedded(discussion, activeId, true)}>{l("新建独立讨论")}</button></details>}
         </aside>}
 

@@ -58,6 +58,20 @@ let team = {
     { id: 't3', subject: '开发与自测', description: '仅在需求通过后执行', assignee: 'developer', dependencies: ['t2'], status: 'pending', attempt: 0, createdAt: 1, updatedAt: 1 },
   ],
 };
+if (process.env.TEAMFLOW_PREVIEW_REVIEW) {
+  team.name = 'CSV 导出 · 验收工作台';
+  Object.assign(team.tasks[0], { subject:'实现与验证 CSV 导出', output:'已提交字段、编码和权限验证记录；大数据量验证待补充。', acceptanceResults:[
+    {criterion:'导出字段完整',status:'passed',evidence:'8 个字段，顺序与约定一致。'},
+    {criterion:'中文与特殊字符',status:'passed',evidence:'UTF-8 BOM 与引号、逗号、换行往返读取通过。'},
+    {criterion:'权限控制',status:'passed',evidence:'未登录 401，无权限 403。'},
+    {criterion:'10 万行导出',status:'failed',evidence:'仅验证 1,000 行，缺少目标规模实测。'},
+  ],commandsRun:[{command:'node --test csv.test.mjs',status:'passed',exitCode:0,evidence:'6 tests passed'}] });
+  Object.assign(team.tasks[1],{subject:'功能交付验收',description:'检查字段、编码、权限与大数据量导出；缺少证据时退回补充。',acceptance:['导出字段完整','中文与特殊字符','权限控制','10 万行导出']});
+  const before=structuredClone(team);before.tasks[0].output='中文编码验证缺失。';before.tasks[0].acceptanceResults[1]={criterion:'中文与特殊字符',status:'failed',evidence:'缺少 BOM。'};
+  const previous=workflowMaterials(before,'t2',process.cwd());
+  team.tasks[1].checkpoint={round:2,history:[{round:1,decision:'reject',note:'请补充编码和大数据量验证。',at:Date.now()-60000,evidence:previous.evidence,materials:previous.text}]};
+  team.tasks.push({id:'t4',subject:'独立检查点',description:'核对另一项结果。',dependencies:['t1'],status:'pending',checkpoint:{round:1,history:[]},attempt:0,createdAt:1,updatedAt:1});team.taskSeq=4;
+}
 if(process.env.TEAMFLOW_PREVIEW_ACTIVITY_DISCUSSION)team=instantiateTemplate(getBuiltinTemplate('builtin-feature'),'preview','preview','模板适配中的团队','实现本次功能');
 if(process.env.TEAMFLOW_PREVIEW_ARCHIVED) {
   team.name='6/7 人工验收归档恢复示例';team.phase='running';team.taskSeq=7
@@ -187,7 +201,7 @@ createServer(async (req, res) => {
       if(key==='template')discussion.templateDraft={base:workflowFingerprint(team),definition:{...sample,name:'可复用研发流程'}};
       discussion.native = { sessionId: `session-at-discussion-preview-${key}`, label: key };
     }
-    if (body.action === 'review') decideCheckpoint(team, body.taskId, body.decision, body.evidence, workflowMaterials(team, body.taskId, process.cwd()).evidence, body.note || '');
+    if (body.action === 'review') { const material=workflowMaterials(team, body.taskId, process.cwd()); decideCheckpoint(team, body.taskId, body.decision, body.evidence, material.evidence, body.note || '', material.text); }
     send(res, 200, { team, base: workflowFingerprint(team), ...(['set_flow_enabled','restore_archive','review','set_task_enabled','state','create','template_apply','open_discussion','edit','apply','resume_rerun_path','resume_task','stop_task','start'].includes(body.action)?{activity:await assembleTeamSnapshot({agents:{get(){}}},resolve('node_modules/workflow-preview-state'),'测试',team)}:{}), ready: body.action === 'archive_state' ? [] : team.tasks.filter(t => checkpointReady(team, t) && !t.checkpoint.decision).map(t => t.id), busy: [], ...(process.env.TEAMFLOW_PREVIEW_ACTIVITY_DISCUSSION ? {currentDiscussion:'adapt'} : process.env.TEAMFLOW_PREVIEW_DISCUSSION ? { currentDiscussion: 'member:researcher' } : {}), ...(body.action === 'open_discussion' ? { openedSessionId: discussion.native.sessionId } : {}) });
   } catch (error) { send(res, 409, { error: error.message }); }
 }).listen(port, '127.0.0.1', () => console.log(`Workflow UI fixture: http://127.0.0.1:${port}`));

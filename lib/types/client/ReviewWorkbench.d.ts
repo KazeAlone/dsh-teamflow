@@ -1,0 +1,21 @@
+import { type ReactNode } from 'react';
+import type { TeamState, TeamTask } from '../types.ts';
+import type { WorkflowDiscussion } from '../workflow-types.ts';
+export declare function ReviewWorkbench({ team, task, conversation, ready, archived, busy, note, onNote, onRefresh, onDecision, onDiscuss, onRestart, discussionBusy, discussion, proposal, onBack }: {
+    team: TeamState;
+    task: TeamTask;
+    conversation?: WorkflowDiscussion;
+    ready: boolean;
+    archived: boolean;
+    busy: boolean;
+    note: string;
+    onNote: (value: string) => void;
+    onRefresh: () => void;
+    onDecision: (decision: 'approve' | 'reject', evidence: string, note: string) => Promise<boolean>;
+    onDiscuss: () => void;
+    discussion?: ReactNode;
+    proposal?: ReactNode;
+    onBack: () => void;
+    onRestart?: () => void;
+    discussionBusy?: boolean;
+}): import("react").JSX.Element;

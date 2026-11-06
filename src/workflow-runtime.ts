@@ -46,7 +46,7 @@ export function workflowMaterials(team: TeamState, taskId: string, workspace: st
   const inputs = checkpointInputs(team, gate)
   const paths = [...new Set(inputs.flatMap(t => [...t.changedPaths ?? [], ...t.deliverables ?? []]))]
   const files = paths.length ? readArtifactScope(workspace, paths) : { artifacts: [], gaps: [] }
-  const material = { check: { id: gate.id, subject: gate.subject, description: taskText(gate), round: gate.checkpoint!.round },
+  const material = { check: { id: gate.id, subject: gate.subject, description: taskText(gate), round: gate.checkpoint!.round, ...(gate.acceptance?.length ? { acceptance: gate.acceptance } : {}) },
     results: inputs.map(t => ({ id: t.id, subject: t.subject, status: t.status, attemptId: t.attemptId,
       output: t.output, changedPaths: t.changedPaths, commandsRun: t.commandsRun, acceptanceResults: t.acceptanceResults })),
     files, limitation: '任务输出和命令结果由执行 Agent 提交；文件摘要由宿主读取。验收 Agent 未独立运行命令，也未读取全部文件内容。' }
@@ -386,7 +386,8 @@ export function installWorkflowWorkbench(ctx: Context, config: ToolsConfig, runt
             if (decision !== 'approve' && decision !== 'reject') throw new Error('无效验收决定')
             const discussion = discussionOf(team, `check:${id}`)
             if (typeof body['evidence'] !== 'string' || body['evidence'] !== discussion.evidence) throw new Error('请先打开并阅读当前验收材料')
-            decideCheckpoint(team, id, decision, body['evidence'], workflowMaterials(team, id, workspace).evidence, typeof body['note'] === 'string' ? body['note'].slice(0, 16000) : '')
+            const material = workflowMaterials(team, id, workspace)
+            decideCheckpoint(team, id, decision, body['evidence'], material.evidence, typeof body['note'] === 'string' ? body['note'].slice(0, 16000) : '', material.text)
           } else if (action === 'resume_rerun_path') {
             if(body['base'] !== workflowFingerprint(team))throw new Error('团队已变化，请刷新节点后重新确认')
             resumeRerunPath(team,string(body['taskId'],'taskId'))

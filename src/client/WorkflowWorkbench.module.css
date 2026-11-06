@@ -364,3 +364,13 @@ form.editor { display: flex; flex-direction: column; padding: 0; }
 .discussionStatus{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px;flex:none;min-height:36px;margin-top:6px}
 .discussionStatus>.latestReply{margin:0 0 0 auto;flex:none}
 .messages:has(>.embeddedChat)>.hint{display:none}
+/* Review uses the existing inspector; expansion keeps the same canvas mounted. */
+.columns[data-reviewing='true']:not([data-inspector-hidden='true']) { grid-template-columns: minmax(0, 1fr) 6px minmax(420px, min(var(--inspector-width, 640px), 68%)); }
+.columns[data-reviewing='true']>.roster { display: none; }
+.columns[data-reviewing='true'][data-inspector-expanded='true']:not([data-inspector-hidden='true']) { grid-template-columns: minmax(0,1fr); }
+.columns[data-reviewing='true'][data-inspector-expanded='true']:not([data-inspector-hidden='true'])>.graphArea,
+.columns[data-reviewing='true'][data-inspector-expanded='true']:not([data-inspector-hidden='true'])>.resizeHandle { display: none; }
+@media (max-width: 900px) {
+  .columns[data-reviewing='true']:not([data-inspector-hidden='true']) { grid-template-columns:minmax(0,1fr); }
+  .columns[data-reviewing='true']>.resizeHandle { display:none; }
+}

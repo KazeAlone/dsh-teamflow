@@ -58,7 +58,7 @@ export function isCheckpoint(value: unknown): boolean {
   return record(value) && positive(value['round']) && [undefined, 'approve', 'reject'].includes(value['decision'] as string | undefined)
     && optionalString(value['note']) && optionalString(value['evidence']) && (value['decidedAt'] === undefined || number(value['decidedAt']))
     && Array.isArray(value['history']) && value['history'].every(item => record(item) && positive(item['round'])
-      && ['approve', 'reject'].includes(item['decision'] as string) && number(item['at']) && string(item['note']) && string(item['evidence']))
+      && ['approve', 'reject'].includes(item['decision'] as string) && number(item['at']) && string(item['note']) && string(item['evidence']) && optionalString(item['materials']))
 }
 export function isStoppedAttempts(value: unknown): boolean {
   return Array.isArray(value) && value.every(item => record(item) && optionalString(item['attemptId']) && optionalString(item['output']) && number(item['at']))

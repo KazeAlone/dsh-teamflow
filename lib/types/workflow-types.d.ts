@@ -69,7 +69,8 @@ export interface Checkpoint {
         decision: string;
         at: number;
         note: string;
-        evidence: string;
+        evidence: string; /** Exact approved/rejected snapshot; absent in legacy records. */
+        materials?: string;
     }[];
 }
 export interface WorkflowProposal {

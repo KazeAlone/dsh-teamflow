@@ -19,7 +19,7 @@ Built on [AgentTeams](https://github.com/NanmiCoder/dsh-agent-teams), TeamFlow n
 
 ## Start here
 
-This README describes development version **`0.2.6-dev.10`**. The package is `@yogurtss/dsh-teamflow`; install it from this repository or a local build.
+This README describes development version **`0.2.6-dev.11`**. The package is `@yogurtss/dsh-teamflow`; install it from this repository or a local build.
 
 | Channel | Git source | Purpose |
 | --- | --- | --- |
@@ -60,6 +60,8 @@ Click the conversation's activity dot to return to the canvas. Select a node to 
 An edge `A → B` means B waits for A. Independent branches can run in parallel when their assigned members are available. Paused or unconfigured tasks do not start; enabling a task does not bypass its prerequisites.
 
 At a human checkpoint, open the evidence and use **Approve** or **Return**. The review discussion helps you inspect results and gaps; the decision is yours. A chat message saying “approved” does not record approval. A returned checkpoint blocks dependent work while unrelated branches can continue.
+
+The **Review workbench** opens from the checkpoint's details, Needs attention, or the chat's review reminder. Inspect requirements, submitted checks, command records, and file digests beside the canvas; expand the panel for more space. Compare saved rounds or discuss the checkpoint with AI. Approval requires confirmation; returning work requires a reason. New decisions retain their evidence snapshot; older records without snapshots are labeled explicitly. Evidence links use exact criterion names, and agent reports are never treated as human approval.
 
 ### 4. Revise and reuse
 

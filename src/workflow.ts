@@ -257,13 +257,14 @@ export function applyWorkflowProposal(team: TeamState, proposal: WorkflowProposa
   return updated
 }
 /** Only the authenticated human route calls this; no model tool can decide a gate. */
-export function decideCheckpoint(team: TeamState, id: string, decision: 'approve' | 'reject', evidence: string, current: string, note: string): void {
+export function decideCheckpoint(team: TeamState, id: string, decision: 'approve' | 'reject', evidence: string, current: string, note: string, materials?: string): void {
   const task = taskOf(team, id)
   if (!checkpointReady(team, task) || !task.checkpoint || task.checkpoint.decision) throw new Error('该检查点当前不能验收')
   if (!evidence || evidence !== current) throw new Error('验收材料已变化，请刷新材料后重新检查')
+  if (materials !== undefined && createHash('sha256').update(materials).digest('hex') !== evidence) throw new Error('验收材料已变化，请刷新材料后重新检查')
   const gate = task.checkpoint, at = Date.now()
   gate.decision = decision; gate.decidedAt = at; gate.note = note; gate.evidence = evidence
-  gate.history.push({ round: gate.round, decision, at, note, evidence })
+  gate.history.push({ round: gate.round, decision, at, note, evidence, ...(materials === undefined ? {} : { materials }) })
   task.updatedAt = at
   if (decision === 'approve') { task.status = 'completed'; task.output = `人工验收通过：${note}` }
 }

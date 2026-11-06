@@ -1219,3 +1219,32 @@ test('rerun path rejects blocked ancestors without partially releasing any node'
  const source=team();source.tasks=[{...task('a',['missing']),workflowRerunRequired:true}];assert.throws(()=>resumeRerunPath(source,'a'),/缺失/)
  source.tasks[0].dependencies=['a'];assert.throws(()=>resumeRerunPath(source,'a'),/循环/)
 })
+
+test('review decisions retain exact immutable snapshots across rework and reject stale evidence', async t => {
+  const source=withGate();source.tasks[0].status='completed';source.tasks[0].output='First result'
+  const f=await lifecycleFixture(t,source)
+  const opened=await f.call('materials',{discussion:'check:gate'})
+  assert.equal(opened.code,200,opened.error)
+  const evidence=opened.team.workflow.discussions['discussion:check:gate'].evidence
+  const raw=opened.team.workflow.discussions['discussion:check:gate'].materials
+  const rejected=await f.call('review',{taskId:'gate',decision:'reject',evidence,note:'Fix the result'})
+  assert.equal(rejected.code,200,rejected.error)
+  assert.equal(rejected.team.tasks.find(t=>t.id==='gate').checkpoint.history[0].materials,raw)
+  const persisted=await f.read();assert.equal(persisted.tasks.find(t=>t.id==='gate').checkpoint.history[0].materials,raw)
+  const rerun=applyWorkflowOperations(persisted,[{action:'rerun_task',id:'t1',instructions:'Fix it'}])
+  assert.equal(rerun.tasks.find(t=>t.id==='gate').checkpoint.history[0].materials,raw)
+  const gate=rerun.tasks.find(t=>t.id==='gate');gate.workflowPaused=false;gate.workflowRerunRequired=false
+  rerun.tasks[0].status='completed';rerun.tasks[0].output='Second result';await f.save(rerun)
+  const next=await f.call('materials',{discussion:'check:gate'});assert.equal(next.code,200,next.error)
+  const oldDecision=await f.call('review',{taskId:'gate',decision:'approve',evidence,note:''})
+  assert.equal(oldDecision.code,409)
+  const changed=await f.read();changed.tasks[0].output='Changed after reading';await f.save(changed)
+  const stale=await f.call('review',{taskId:'gate',decision:'approve',evidence:next.team.workflow.discussions['discussion:check:gate'].evidence,note:''})
+  assert.equal(stale.code,409);assert.equal((await f.read()).tasks.find(t=>t.id==='gate').checkpoint.decision,undefined)
+})
+
+test('mismatched material snapshots never mutate the checkpoint', () => {
+  const source=withGate();source.tasks[0].status='completed';const before=structuredClone(source)
+  assert.throws(()=>decideCheckpoint(source,'gate','approve','hash','hash','', '{}'),/材料已变化/)
+  assert.deepEqual(source,before)
+})

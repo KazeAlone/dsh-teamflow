@@ -13,4 +13,4 @@ export declare function applyWorkflowOperations(original: TeamState, operations:
 export declare function proposeWorkflow(team: TeamState, title: string, raw: unknown, maxMembers?: number): WorkflowProposal;
 export declare function applyWorkflowProposal(team: TeamState, proposal: WorkflowProposal, maxMembers?: number): TeamState;
 /** Only the authenticated human route calls this; no model tool can decide a gate. */
-export declare function decideCheckpoint(team: TeamState, id: string, decision: 'approve' | 'reject', evidence: string, current: string, note: string): void;
+export declare function decideCheckpoint(team: TeamState, id: string, decision: 'approve' | 'reject', evidence: string, current: string, note: string, materials?: string): void;

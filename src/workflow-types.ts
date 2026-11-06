@@ -15,7 +15,7 @@ export interface Checkpoint {
   note?: string
   evidence?: string
   round: number
-  history: { round: number; decision: string; at: number; note: string; evidence: string }[]
+  history: { round: number; decision: string; at: number; note: string; evidence: string; /** Exact approved/rejected snapshot; absent in legacy records. */ materials?: string }[]
 }
 export interface WorkflowProposal {
   id: string
