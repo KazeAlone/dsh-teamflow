@@ -65,7 +65,7 @@ export function installWorkflowWorkbench(ctx: Context, config: ToolsConfig, runt
   ctx.effect(() => server.register({ kind: 'exact', path: '/plugins/dsh-agent-teams/workflow', handler: async (req, res) => {
     let conditionalState=false,knownRevision:unknown
     const reply = (status: number, value: unknown): void => {
-      if(status===200&&conditionalState&&value&&typeof value==='object'&&'team' in value&&value.team){
+      if(status===200&&conditionalState&&value&&typeof value==='object'&&(('team' in value&&value.team)||'messages' in value)){
         const revision=createHash('sha256').update(JSON.stringify(value)).digest('hex')
         value=knownRevision===revision?{notModified:true,revision}:{...value,revision}
       }
@@ -75,7 +75,7 @@ export function installWorkflowWorkbench(ctx: Context, config: ToolsConfig, runt
     try {
       const body = await readJsonRequest(req)
       const action = string(body['action'], 'action')
-      conditionalState=(action==='state'||action==='archive_state')&&body['conditionalState']===true
+      conditionalState=(action==='state'||action==='archive_state'||action==='conversation_state')&&body['conditionalState']===true
       knownRevision=body['knownRevision']
       const libraryRoot = templateLibraryRoot(config.templateDirectory)
       if (action === 'launcher_context') {

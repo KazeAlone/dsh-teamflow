@@ -1,3 +1,4 @@
+import { discussionHistory } from './discussion-history.ts'
 /** Native Harness conversations, with proposal-only authority and durable scoping. */
 import type { Context } from '@deepseek-ai/cordis'
 import type { Agent } from '@deepseek-ai/dsh-agent'
@@ -219,12 +220,7 @@ export function installWorkflowConversations(ctx: Context, config: ToolsConfig,
         agent = handle.agent
       }
       if (!boundDiscussion(team, agent)) throw new Error('讨论会话已失效')
-      const messages = sessionOwnEvents(agent.session).flatMap(event => {
-        const message = event.type === 'user/message' ? event.data : event.type === 'assistant/message' ? event.data.message : undefined
-        if (!message || (event.type === 'user/message' && message.source.kind !== 'user')) return []
-        const text = message.content.filter(block => block.type === 'text').map(block => block.text).join('\n').trim()
-        return text ? [{ id: String(event.seq), role: event.type === 'user/message' ? 'user' : 'assistant', text }] : []
-      }).slice(-100)
+      const messages = discussionHistory(agent.session)
       const live = agent.status === 'running' ? streams.read(agent) : undefined
       return { messages: live ? [...messages,live] : messages, busy: agent.status === 'running' }
     },

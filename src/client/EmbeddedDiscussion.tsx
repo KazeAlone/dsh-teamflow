@@ -1,3 +1,4 @@
+import { createWorkflowCache } from './workflow-cache.ts'
 import { workflowRequest } from './workflow-request.ts'
 import { workflowMessage } from './workflow-text.ts'
 import { useWorkflowText } from './workflow-i18n.tsx'
@@ -7,7 +8,8 @@ import { BrandIcon } from './BrandIcon.tsx'
 import css from './WorkflowWorkbench.module.css'
 import { remainingMessage } from './workbench-drafts.ts'
 
-type Chat = { messages: { id: string; role: string; text: string; streaming?:boolean }[]; busy: boolean }
+type Chat = { revision?:string; messages: { id: string; role: string; text: string; streaming?:boolean }[]; busy: boolean }
+const discussionCache=createWorkflowCache<Chat>(4,2*1024*1024)
 export function EmbeddedDiscussion({ sessionId, teamId, discussion }: { sessionId: string; teamId: string; discussion: string }) {
   const l = useWorkflowText()
 
@@ -18,7 +20,8 @@ function Discussion({ sessionId, teamId, discussion }: { sessionId: string; team
 
   const storageKey = `teamflow:discussion-draft:v1:${JSON.stringify([sessionId,teamId,discussion])}`
   const [storageError,setStorageError] = useState('')
-  const [chat, setChat] = useState<Chat>({ messages: [], busy: false })
+  const [chat, setChat] = useState<Chat>(()=>discussionCache.get(storageKey)??{ messages: [], busy: false })
+  const chatRef=useRef(chat)
   const [loading, setLoading] = useState(true)
   const [text, setText] = useState(() => { try { return sessionStorage.getItem(storageKey) ?? '' } catch { return '' } })
   const textRef = useRef(text), liveRef = useRef(true)
@@ -47,17 +50,20 @@ function Discussion({ sessionId, teamId, discussion }: { sessionId: string; team
     else if (tail) setUnread(true)
   }, [tail?.id,tail?.text,chat.busy,sending,loading])
   async function request(action: string, message?: string, signal?:AbortSignal): Promise<Chat> {
-    return workflowRequest<Chat>({sessionId,teamId,discussion,action,message},fetch,action==='conversation_state'?12000:45000,signal)
+    const previous=chatRef.current
+    const value=await workflowRequest<Chat & {notModified?:boolean}>({sessionId,teamId,discussion,action,message,...action==='conversation_state'?{conditionalState:true,knownRevision:previous.revision}:{}},fetch,action==='conversation_state'?12000:45000,signal)
+    return value.notModified?previous:value
   }
   useEffect(() => {
     const abort = new AbortController()
     let timer: ReturnType<typeof setTimeout>
     async function refresh() {
+      if(document.hidden){timer=setTimeout(()=>void refresh(),1500);return}
       const epoch=pollEpoch.current
       let delay=1500
       try {
         const value=await request('conversation_state',undefined,abort.signal)
-        if (!abort.signal.aborted && epoch===pollEpoch.current) { setChat(value); setError(''); setLoading(false) }
+        if (!abort.signal.aborted && epoch===pollEpoch.current) { if(chatRef.current!==value)discussionCache.set(storageKey,value);chatRef.current=value;setChat(previous=>previous.revision&&previous.revision===value.revision?previous:value); setError(''); setLoading(false) }
         if(value.busy)delay=250
       } catch(err) {
         if (!abort.signal.aborted && epoch===pollEpoch.current) { setError(err instanceof Error ? err.message : String(err)); setLoading(false) }
@@ -72,7 +78,7 @@ function Discussion({ sessionId, teamId, discussion }: { sessionId: string; team
     pollEpoch.current++; latest(); setSending(true); setError('')
     try {
       const result = await request('conversation_send', message)
-      if (liveRef.current) { pollEpoch.current++; setChat(result); changeText(remainingMessage(textRef.current,submitted)) }
+      if (liveRef.current) { pollEpoch.current++; chatRef.current=result;discussionCache.set(storageKey,result);setChat(result); changeText(remainingMessage(textRef.current,submitted)) }
       else { try { if (sessionStorage.getItem(storageKey) === submitted) sessionStorage.removeItem(storageKey) } catch { /* Keep a recoverable draft if storage is unavailable. */ } }
     }
     catch (err) { if (liveRef.current) setError(err instanceof Error ? err.message : String(err)) }

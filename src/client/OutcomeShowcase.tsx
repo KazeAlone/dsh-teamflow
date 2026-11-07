@@ -1,3 +1,4 @@
+import { workflowRequest } from './workflow-request.ts'
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import type { TeamState } from '../types.ts'
 import { outcomeCsv, outcomeFiles, type OutcomePreview } from '../outcomes.ts'
@@ -39,10 +40,8 @@ export function OutcomeShowcase({ team, sessionId, archived, onTask }: { team: T
     const controller = new AbortController()
     void (async () => {
       try {
-        const response = await fetch('/plugins/dsh-agent-teams/workflow', { method:'POST', headers:{'content-type':'application/json'}, signal:controller.signal,
-          body:JSON.stringify({action:'outcome_preview',sessionId,teamId:team.id,taskId:task.id,path:validFile,archived}) })
-        const body = await response.json() as { preview?: OutcomePreview; error?: string }
-        if (!response.ok || !body.preview) throw new Error(body.error ?? `HTTP ${response.status}`)
+        const body = await workflowRequest<{preview?:OutcomePreview;error?:string}>({action:'outcome_preview',sessionId,teamId:team.id,taskId:task.id,path:validFile,archived},fetch,12000,controller.signal)
+        if (!body.preview) throw new Error(body.error ?? 'Preview unavailable')
         if (!controller.signal.aborted) setResult({key,preview:body.preview})
       } catch (err) { if (!controller.signal.aborted) setResult({key,error:err instanceof Error ? err.message : String(err)}) }
     })()

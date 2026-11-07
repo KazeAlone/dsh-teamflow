@@ -35,11 +35,11 @@ import { ReviewWorkbench } from './ReviewWorkbench.tsx'
 
 interface Response { revision?:string; execution?:Record<string,ExecutionState>; team: TeamState; base: string; ready: string[]; busy: string[]; openedSessionId?: string; currentDiscussion?: string; activity?:ActivityTeam }
 const viewCache=createWorkflowCache<Response>()
-async function request(payload: Record<string, unknown>): Promise<Response | undefined> {
+async function request(payload: Record<string, unknown>, signal?:AbortSignal): Promise<Response | undefined> {
   const reading=payload['action']==='state'||payload['action']==='archive_state'
   const key=workflowCacheKey(String(payload['sessionId']),String(payload['teamId']??''),payload['action']==='archive_state')
   const previous=reading?viewCache.get(key):undefined
-  const result = await workflowRequest<Response & {notModified?:boolean}>({...payload,...reading?{conditionalState:true,knownRevision:previous?.revision}:{}})
+  const result = await workflowRequest<Response & {notModified?:boolean}>({...payload,...reading?{conditionalState:true,knownRevision:previous?.revision}:{}},fetch,undefined,signal)
   if(result.notModified&&previous)return previous
   if(reading&&!result.team)viewCache.remove(key)
   if (!result.team) return
@@ -250,14 +250,14 @@ function Workbench({ sessionId, teamId, archived = false, waitingCount = 0, open
     if (editor && !editor.id) dialog.current?.querySelector<HTMLElement>('[data-workflow-editor] input:not(:disabled), [data-workflow-editor] textarea')?.focus()
   }, [editor])
   useEffect(() => { if (teamId && teamId !== activeId) { setActiveId(teamId); setData(undefined); updateView(current => ({...initialWorkbenchView(),revision:current.revision+1})); setPositions({}); initializedDiscussion.current = false; generation.current++ } }, [sessionId, teamId])
-  const refresh = async (): Promise<void> => {
+  const refresh = async (signal?:AbortSignal): Promise<void> => {
     if(refreshInFlight.current||mutationInFlight.current)return
     refreshInFlight.current=true
     const token = generation.current
     try {
-      const result = await request({ sessionId, teamId: activeId, action: archiveView ? 'archive_state' : 'state' })
-      if (!result) {if(mounted.current&&token===generation.current){setData(undefined);setRevalidating(false)};return}
-      if (mounted.current && token === generation.current) {
+      const result = await request({ sessionId, teamId: activeId, action: archiveView ? 'archive_state' : 'state' },signal)
+      if (!result) {if(mounted.current&&!signal?.aborted&&token===generation.current){setData(undefined);setRevalidating(false)};return}
+      if (mounted.current && !signal?.aborted && token === generation.current) {
         setConnectionError('')
         setError(previous=>previous.startsWith('连接中断')||previous===l('请先重新连接并核对最新状态，再操作流程。')?'':previous)
         if(!activeId)setGalleryMode(undefined)
@@ -270,14 +270,16 @@ function Workbench({ sessionId, teamId, archived = false, waitingCount = 0, open
   }
   useEffect(() => {
     if (mutating || (!activeId && data)) return
-    void refresh()
+    const controller=new AbortController()
+    void refresh(controller.signal)
     // A restored native conversation can mount before the host attaches its
     // Agent. Keep retrying discovery so that its persisted team appears without
     // requiring another navigation or accidentally offering to create a team.
-    const reconnect=()=>{void refresh()}
+    const reconnect=()=>{if(!document.hidden)void refresh(controller.signal)}
     window.addEventListener('online',reconnect)
+    document.addEventListener('visibilitychange',reconnect)
     const timer = setInterval(reconnect, 2500)
-    return () => {clearInterval(timer);window.removeEventListener('online',reconnect)}
+    return () => {controller.abort();clearInterval(timer);window.removeEventListener('online',reconnect);document.removeEventListener('visibilitychange',reconnect)}
   }, [activeId, mutating, archiveView])
   async function perform(action: string, fields: Record<string, unknown> = {}): Promise<Response | undefined> {
     if(revalidating)return

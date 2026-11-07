@@ -32,5 +32,5 @@ test('restart accepts stopped partial attempts but never a live attempt or untou
 test('unmount cancellation aborts an in-flight read without waiting for its deadline',async()=>{
  const controller=new AbortController();let signal;
  const pending=workflowRequest({action:'conversation_state'},async(url,init)=>{signal=init.signal;return new Promise((resolve,reject)=>signal.addEventListener('abort',()=>reject(Error('cancelled')),{once:true}))},10000,controller.signal);
- controller.abort();await assert.rejects(pending,/连接中断/);assert.equal(signal.aborted,true);
+ controller.abort();await assert.rejects(pending,{name:'AbortError'});assert.equal(signal.aborted,true);
 });

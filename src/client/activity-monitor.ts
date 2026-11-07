@@ -303,6 +303,7 @@ export function startActivityPolling(
     if (inFlight || cancelled) return
     inFlight = true
     controller = new AbortController()
+    const timeout=setTimeout(()=>controller?.abort(),12000)
     try {
       const liveResponse = await fetchState(stateUrl, {
         cache: 'no-store',
@@ -354,10 +355,11 @@ export function startActivityPolling(
       discoveryComplete = true
       settleTargets(new Set(missing.map((target) => target.key)))
     } catch (error: unknown) {
-      if ((error as { name?: unknown })?.name === 'AbortError') return
+      if (cancelled && (error as { name?: unknown })?.name === 'AbortError') return
       if (!cancelled) runtime.onStatus?.('error')
       // Host restarting; keep the last snapshot and retry on the next tick.
     } finally {
+      clearTimeout(timeout)
       inFlight = false
     }
   }

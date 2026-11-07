@@ -36,7 +36,7 @@ async function lifecycleFixture(t, source, options = {}) {
   let route
   const ctx = {agents:{get:id=>id===captain.id?captain:options.liveAgents?.get(id)}, on(){}, effect:fn=>fn(), logger:{warn(){},debug(){}}, subagents:{drainChildren:options.drain ?? (async()=>{})}}
   const scheduler = installTeamScheduler(ctx,{stateDir:'.agent-teams',dispatch:async(...args)=>{dispatched.push(args);return true}})
-  installWorkflowWorkbench(ctx,{stateDir:'.agent-teams',maxMembers:8},scheduler,{register:value=>{route=value;return()=>{}}})
+  installWorkflowWorkbench(ctx,{stateDir:'.agent-teams',maxMembers:8},scheduler,{register:value=>{route=value;return()=>{}}},options.conversations)
   const read = () => readTeam(stateRoot,'demo')
   const call = async (action, fields = {}) => {
     const req=Readable.from([JSON.stringify({sessionId:captain.id,teamId:'demo',action,...fields})]);req.method='POST';req.headers={}
@@ -1388,3 +1388,13 @@ test('ordinary paused ancestry starts through target, preserving completed ances
  const f=await lifecycleFixture(t,source);const state=await f.call('state');const next=await f.call('start_path',{taskId:'b',base:state.base});assert.equal(next.code,200,next.error);
  assert.deepEqual(next.team.tasks[0],source.tasks[0]);assert.equal(next.team.tasks[1].status,'claimed');assert.equal(next.team.tasks[2].workflowPaused,false);assert.equal(next.team.tasks[3].workflowPaused,true);
 });
+
+test('conditional discussion history retains streaming and busy changes without resending identical history',async t=>{
+ let chat={messages:[{id:'1',role:'assistant',text:'hello'}],busy:false}
+ const f=await lifecycleFixture(t,team(),{conversations:{readEmbedded:async()=>chat}})
+ const initial=await f.call('conversation_state',{discussion:'member:worker',conditionalState:true});assert.equal(initial.code,200);assert.ok(initial.revision)
+ const same=await f.call('conversation_state',{discussion:'member:worker',conditionalState:true,knownRevision:initial.revision});assert.equal(same.notModified,true);assert.equal(same.messages,undefined)
+ chat={messages:[...chat.messages,{id:'stream',role:'assistant',text:'partial',streaming:true}],busy:true}
+ const changed=await f.call('conversation_state',{discussion:'member:worker',conditionalState:true,knownRevision:initial.revision});assert.equal(changed.busy,true);assert.equal(changed.messages.at(-1).text,'partial');assert.notEqual(changed.revision,initial.revision)
+ assert.equal(f.dispatched.length,0);assert.equal((await f.read()).tasks[0].status,'pending')
+})

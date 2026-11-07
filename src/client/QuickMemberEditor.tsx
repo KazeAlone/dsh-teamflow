@@ -1,3 +1,4 @@
+import { workflowRequest } from './workflow-request.ts'
 import { workflowMessage } from './workflow-text.ts'
 import { useWorkflowText } from './workflow-i18n.tsx'
 /** Inline member configuration in the activity list, saved via the same workflow API as the canvas. */
@@ -13,11 +14,8 @@ import { TaskRerunPicker } from './TaskRerunPicker.tsx'
 import { rerunnableTasks } from '../task-rerun.ts'
 
 type Details = { base: string; team: TeamState }
-async function request(payload: Record<string, unknown>): Promise<Details> {
-  const response = await fetch('/plugins/dsh-agent-teams/workflow', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(payload) })
-  const value = await response.json() as Details & { error?: string }
-  if (!response.ok) throw new Error(value.error ?? `HTTP ${response.status}`)
-  return value
+async function request(payload: Record<string, unknown>, signal?: AbortSignal): Promise<Details> {
+  return workflowRequest<Details>(payload,fetch,undefined,signal)
 }
 export function QuickMemberEditor({ team, member, directory, t, close, onRerun }: { team: ActivityTeam; member: ActivityMember; directory: ModelDirectory; t: AgentTeamsTranslate; close: () => void; onRerun:(taskId:string)=>void }) {
   const l = useWorkflowText(t)
@@ -32,13 +30,14 @@ export function QuickMemberEditor({ team, member, directory, t, close, onRerun }
   const [rerunId, setRerunId] = useState('')
   useEffect(() => {
     let live = true
+    const controller=new AbortController()
     setBusy(true); setError('')
-    void request({ action: 'state', sessionId: team.captainSessionId, teamId: team.teamId }).then(result => {
+    void request({ action: 'state', sessionId: team.captainSessionId, teamId: team.teamId },controller.signal).then(result => {
       const current = result.team.members.find(item => item.name === member.name)
       if (!current) throw new Error(l("成员不存在"))
       if (live) { setBase(result.base); setRole(current.role ?? ''); setRoute({ provider: current.provider ?? '', model: current.model ?? '', reasoningEffort: current.reasoningEffort ?? '' }); setRouteChanged(false); setTasks(result.team.tasks); setRerunId(rerunnableTasks(result.team.tasks, member.name).at(-1)?.id ?? '') }
     }).catch(err => { if (live) setError(err instanceof Error ? err.message : String(err)) }).finally(() => { if (live) setBusy(false) })
-    return () => { live = false }
+    return () => { live = false; controller.abort() }
   }, [team.captainSessionId, team.teamId, member.name])
   async function save(rerun = false): Promise<void> {
     setBusy(true); setError('')
