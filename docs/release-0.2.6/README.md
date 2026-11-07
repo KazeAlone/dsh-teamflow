@@ -23,6 +23,8 @@ Execution review checks that completed ancestors are retained, running owners ar
 
 ## Validation
 
+The final [complete compatibility gate](https://github.com/yogurtss/dsh-teamflow/actions/runs/42336505717) passed on candidate `ea01583` (20 jobs): Windows and Ubuntu static/build/full verification, both desktop installation-policy checks, all 15 real-host/platform combinations across the 12 exact supported releases, and source/package hash binding of every host report. The promotion adds only this validation record after that tested commit; runtime code and build artifacts are unchanged.
+
 Local Windows validation passed frontend/backend typechecks, production build, the complete repository verify chain, focused status/delivery/network regressions, and generated artifact consistency. Packaged real-host scenarios passed on rc.2 and rc.5, including lifecycle, cold restore, fallback, failure, captain wakeup, progressive entry, authenticated Web approval, native discussion restoration, protocol compatibility and stability.
 
 Isolated Edge checks passed interrupted-task continuation, lost-response recovery without mutation replay, offline reconnection and English recovery controls. A real rc.5 Web host loaded the candidate, created a six-node template in a dedicated test workspace, and retained the 待配置 capsule after reload. The secondary rerun action was also exercised inside the real rendered editor with native validation disabled: it did not submit the form.
