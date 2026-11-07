@@ -2,6 +2,12 @@ import assert from 'node:assert/strict';
 import { createUserMessage } from '@deepseek-ai/dsh-llm';
 import { writeFileSync } from 'node:fs';
 
+export function ownSessionEvents(session) {
+  if (typeof session.ownEvents === 'function') return session.ownEvents();
+  assert.ok(Array.isArray(session.events), 'Unsupported host Session event-read API');
+  return session.events.slice(session.header.seedLength ?? 0);
+}
+
 /** Runs against the packaged plugin, real authentication, scheduler and LLM service. */
 export async function exerciseWorkflow({ baseUrl, cookie, captain, readTeam, record, ctx, events }) {
   let activeSession = captain.id, activeTeam = 'runtime-lab';
@@ -175,7 +181,7 @@ export async function exerciseWorkflow({ baseUrl, cookie, captain, readTeam, rec
   ctx.effect(()=>()=>appliedCaptain.dispose());await appliedCaptain.agent.whenIdle();activeSession=appliedCaptain.agent.id;activeTeam='';
   result=await post('template_apply',{templateId:saved.template.id,version:saved.template.version,name:'Operator B',description:'Implement operator B'});activeTeam=result.team.id;
   await appliedCaptain.agent.whenIdle();
-  const captainEvents=appliedCaptain.agent.session.ownEvents();
+  const captainEvents=ownSessionEvents(appliedCaptain.agent.session);
   assert.equal(ctx.get('sessionTitle').get(appliedCaptain.agent.session)?.title,'Operator B');
   assert.equal(ctx.get('sessionTitle').get(appliedCaptain.agent.session)?.source.kind,'user');
   assert.ok(captainEvents.some(e=>e.type==='turn/start'),'Template application must engage the blank main session');

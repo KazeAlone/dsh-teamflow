@@ -9,7 +9,7 @@ import { appendFileSync, readFileSync } from 'node:fs';
 import { createHash, randomUUID } from 'node:crypto';
 import { join } from 'node:path';
 import { createUserMessage, LlmAdapter, ToolCallId } from '@deepseek-ai/dsh-llm';
-import { exerciseWorkflow } from './harness-workflow-case.mjs';
+import { exerciseWorkflow, ownSessionEvents } from './harness-workflow-case.mjs';
 
 const events = [];
 const handledControlMessages = new Set();
@@ -183,12 +183,12 @@ export function apply(ctx) {
             ctx.effect(()=>()=>templateMain.dispose());await templateMain.agent.whenIdle();
             assert.equal(ctx.get('sessionTitle').get(templateMain.agent.session)?.title,'Operator B','Template title survives cold restoration');
             assert.notEqual(templateMain.agent.session.header.origin,'subagent');
-            assert.ok(templateMain.agent.session.ownEvents().some(e=>e.type==='turn/start'),'Template main conversation remains engaged after restart');
-            assert.ok(templateMain.agent.session.ownEvents().some(e=>e.type==='user/message'&&e.data.content.some(b=>b.type==='text'&&b.text.includes(templateOwner.teamId))));
+            assert.ok(ownSessionEvents(templateMain.agent.session).some(e=>e.type==='turn/start'),'Template main conversation remains engaged after restart');
+            assert.ok(ownSessionEvents(templateMain.agent.session).some(e=>e.type==='user/message'&&e.data.content.some(b=>b.type==='text'&&b.text.includes(templateOwner.teamId))));
             const saved = JSON.parse(readFileSync('workflow-resume.json', 'utf8'));
             const restored = await ctx.agents.resume({ resumeSessionId: saved.nativeId, agentOptions: { provider: 'runtime-lab', model: 'manual-fixture' } });
             ctx.effect(() => () => restored.dispose()); await restored.agent.whenIdle();
-            const history = restored.agent.session.ownEvents();
+            const history = ownSessionEvents(restored.agent.session);
             assert.ok(saved.nativeId.startsWith('session-at-discussion-'));
             assert.ok(!history.some(event => event.type === 'agent-teams/workflow-discussion'), 'Only native host records belong in the session log');
             assert.ok(history.length > 5, 'Native history must survive process restart');
