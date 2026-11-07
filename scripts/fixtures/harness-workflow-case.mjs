@@ -45,6 +45,13 @@ export async function exerciseWorkflow({ baseUrl, cookie, captain, readTeam, rec
   const unauthorized = await fetch(baseUrl + '/plugins/dsh-agent-teams/workflow', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ sessionId: captain.id, teamId: 'runtime-lab', action: 'state' }) });
   assert.ok([401, 403].includes(unauthorized.status));
   await post('state', { teamId: 'missing-team' }, 409);
+  // Completion is reported before the host's idle handler persists member
+  // status. Settle that independent write before proving previews are read-only.
+  const idleDeadline = Date.now() + 25000;
+  while (readTeam().members.some(member => member.status === 'working')) {
+    assert.ok(Date.now() < idleDeadline, 'Completed members did not settle before preview assertions');
+    await new Promise(resolve => setTimeout(resolve, 25));
+  }
   writeFileSync('outcome-report.md','# Packaged outcome preview');
   const beforePreview=(await post('state')).team, callsBeforePreview=events.filter(e=>e.event==='web-request').length;
   const preview=await post('outcome_preview',{taskId:'t1',path:'outcome-report.md'});

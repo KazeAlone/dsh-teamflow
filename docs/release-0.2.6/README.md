@@ -19,6 +19,7 @@ Execution review checks that completed ancestors are retained, running owners ar
 - Discussion persona placement now resolves the host's modern prefix or legacy persona section. An unavailable placement fails closed and releases the partially installed tool filter.
 - Fresh CI checkouts exposed a template test dependency on an untracked local output directory. Fixtures now use the operating system temporary directory.
 - The deterministic discussion adapter mistook legacy user-role tool results for new human turns, repeatedly requesting context. It now identifies human-source messages and bounds requests so a failing fixture cannot generate unbounded traces.
+- The preview read-only check raced with the host's asynchronous completion-to-idle persistence. It now waits for that write before taking the baseline, while keeping the complete state equality assertion.
 
 ## Validation
 
