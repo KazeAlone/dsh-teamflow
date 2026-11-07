@@ -866,5 +866,6 @@ Object.assign(workflowEnglish, {
 "如果退回有误，或当前结果已经可以接受，可重新验收当前结果。退回记录会保留，不会自动通过或启动任务。":"If the return was mistaken or the current result is now acceptable, reopen its review. The returned decision stays in history; reopening does not approve or start tasks.",
 "重新验收当前结果":"Review current results again",
 "正在更新验收材料或状态，请稍候。":"Updating review evidence or state. Please wait.",
-"本轮验收材料尚未就绪；正在首次加载，读取失败时请点击「刷新验收材料」重试。":"Evidence for this round is not ready. It loads automatically once; if reading fails, choose “Refresh review evidence” to retry."
+"本轮验收材料尚未就绪；正在首次加载，读取失败时请点击「刷新验收材料」重试。":"Evidence for this round is not ready. It loads automatically once; if reading fails, choose “Refresh review evidence” to retry.",
+"交付内容":"Deliverables"
 })

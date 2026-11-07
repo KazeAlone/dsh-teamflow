@@ -6,6 +6,16 @@ export const AGENT_TEAMS_LOCALE_NAMESPACE = 'agentTeams'
 /** Simplified Chinese dictionary (the key-set source of truth). */
 export const zh = {
   'language.code': 'zh',
+  'activity.state.running': "执行中",
+  'activity.state.review': "待验收",
+  'activity.state.attention': "待处理",
+  'activity.state.paused': "已暂停",
+  'activity.state.completed': "已完成",
+  'activity.state.archived': "已归档",
+  'activity.state.history': "历史记录",
+  'activity.state.staged': "待启动",
+  'activity.state.waiting': "等待中",
+  'activity.summary': "已完成 {done}/{total} · 运行中 {running} · 待验收 {review} · 待处理 {attention}",
   'workflow.executionChat': '执行对话 ↗',
   'task.control.rerun': '修改并重跑',
   'task.control.rerunTask': '编辑重跑要求 · {task}',
@@ -277,6 +287,16 @@ export type AgentTeamsLocaleKey = keyof typeof zh
 /** English dictionary, checked complete against the Chinese source key set. */
 export const en = {
   'language.code': 'en',
+  'activity.state.running': "Running",
+  'activity.state.review': "Review",
+  'activity.state.attention': "Attention",
+  'activity.state.paused': "Paused",
+  'activity.state.completed': "Complete",
+  'activity.state.archived': "Archived",
+  'activity.state.history': "History",
+  'activity.state.staged': "Ready to start",
+  'activity.state.waiting': "Waiting",
+  'activity.summary': "Completed {done}/{total} · Running {running} · Reviews {review} · Attention {attention}",
   'workflow.executionChat': 'Execution chat ↗',
   'task.control.rerun': 'Edit and rerun',
   'task.control.rerunTask': 'Edit rerun requirements · {task}',

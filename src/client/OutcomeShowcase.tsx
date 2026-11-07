@@ -54,8 +54,8 @@ export function OutcomeShowcase({ team, sessionId, archived, onTask }: { team: T
   const gates = team.tasks.filter(g => g.checkpoint && g.dependencies.includes(task?.id ?? ''))
   const statusText = (status: OutcomePreview['status']) => l(({ready:'文件可预览',missing:'文件不存在或已被移除',blocked:'此路径不支持预览：仅允许工作区内明确声明的普通文件。',unsupported:'此文件类型或编码暂不支持预览。',too_large:'文件超过预览上限：文本 256 KiB，图片 4 MiB。',unreadable:'文件无法读取或读取期间已变化，请刷新重试。'} as const)[status])
   function selectTask(id: string) { setTaskId(id); setFile(undefined); setRaw(false) }
-  return <section className={css.showcase} aria-label={l('成果展台')}>
-    <header className={css.header}><div><h2>{l('成果')}</h2><p>{l('根据任务记录整理，不调用模型。')}</p></div><span>{l('{0} 个任务有提交说明 · {1} 个文件条目', tasks.filter(t => !!t.output).length, tasks.reduce((n,t) => n + outcomeFiles(t).length, 0))}</span></header>
+  return <section className={css.showcase} aria-label={l('交付内容')}>
+    <header className={css.header}><div><h2>{l('交付内容')}</h2><p>{l('根据任务记录整理，不调用模型。')}</p></div><span>{l('{0} 个任务有提交说明 · {1} 个文件条目', tasks.filter(t => !!t.output).length, tasks.reduce((n,t) => n + outcomeFiles(t).length, 0))}</span></header>
     {!tasks.length ? <p className={css.empty}>{l('暂无执行任务成果。任务提交后会在这里显示。')}</p> : <div className={css.layout}>
       <nav className={css.tasks} aria-label={l('成果来源任务')}>{tasks.map(t => <button key={t.id} aria-pressed={task?.id === t.id} onClick={() => selectTask(t.id)}><strong>{t.subject}</strong><small>{taskReadiness(team,t,l).label} · {t.assignee || l('未分配')}</small><span>{t.output ? l('已提交说明') : l('暂无提交说明')} · {l('{0} 个文件条目', outcomeFiles(t).length)}</span></button>)}</nav>
       {task && <article className={css.detail}>
