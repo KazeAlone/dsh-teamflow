@@ -28,3 +28,5 @@ The view cache is tab-local, owner/team/archive scoped, limited to four entries,
 Validation: full repository verify chain, backend/frontend typechecks, production build, background-audit fidelity/lifetime tests, and isolated Edge delayed-reopen test. Browser fixtures simulate data; actual remote disk speed, proxy latency, session log sizes and Harness history hydration remain unmeasured. Subsequent remote diagnosis should compare the document, activity-state, workflow-state and native session requests separately, including response size and time to first byte.
 
 Development changes belong to `dev`; this investigation does not promote them to stable `main`.
+
+The complete [CI run for `16f4d56`](https://github.com/yogurtss/dsh-teamflow/actions/runs/42339029792) passed all 20 jobs: both platform builds/full checks, desktop-policy checks, all 15 host/platform combinations, and the final artifact-consistency gate.
