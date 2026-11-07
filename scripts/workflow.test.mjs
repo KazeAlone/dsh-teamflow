@@ -159,7 +159,7 @@ test('start all confirms reruns while preserving configuration, rejected reviews
   assert.equal(checkpointReady({...source,tasks:[{...source.tasks[1],checkpoint:{round:1,history:[]},dependencies:[],workflowRerunRequired:true}]},{...source.tasks[1],checkpoint:{round:1,history:[]},dependencies:[],workflowRerunRequired:true}),false)
 })
 
-test('task discussion carries saved context, stays isolated and requires human approval', async t => {
+for (const legacy of [false, true]) test(`task discussion carries saved context, stays isolated and requires human approval (${legacy ? 'legacy' : 'modern'} history)`, async t => {
   const root=mkdtempSync(join(tmpdir(),'workflow-task-discussion-'));t.after(()=>rmSync(root,{recursive:true,force:true}))
   const stateRoot=join(root,'.agent-teams'), source=team()
   Object.assign(source.tasks[0],{description:'Saved requirements',dependencies:['up'],workflowPaused:true,workflowConfigPending:true})
@@ -170,7 +170,7 @@ test('task discussion carries saved context, stays isolated and requires human a
   agents.set(captain.id,captain)
   const ctx={tools:{register:d=>definitions.set(d.name,d)},subagents:{registerContinuableSetup:fn=>{setup=fn}},llm:{resolveCallConfig:async v=>v},effect:fn=>fn(),sessions:{flush:async()=>{}},logger:{warn(){}},agents:{get:id=>agents.get(id),create:async spec=>{
     spec.setup({effect:fn=>fn(),tools:{restrict:filter=>{restrictions.push(filter);return()=>{}}}})
-    const events=[], agent={id:spec.sessionId,status:'idle',session:{header:{cwd:root},ownEvents:()=>events},whenIdle:async()=>{},followup:message=>{prompts.push(message);events.push({type:'user/message',seq:events.length+1,data:message})}}
+    const events=[], agent={id:spec.sessionId,status:'idle',session:{header:{cwd:root},...(legacy ? {events} : {ownEvents:()=>events})},whenIdle:async()=>{},followup:message=>{prompts.push(message);events.push({type:'user/message',seq:events.length+1,data:message})}}
     agents.set(agent.id,agent);return{agent,dispose(){}}
   }}}
   const conversations=installWorkflowConversations(ctx,{stateDir:'.agent-teams',maxMembers:8},workflowMaterials)

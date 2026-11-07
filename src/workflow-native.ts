@@ -11,7 +11,7 @@ import type { ToolsConfig } from './tools.ts'
 import type { TeamState } from './types.ts'
 import type { WorkflowDiscussion } from './workflow-types.ts'
 import { readTeam, readTeamSync, sanitizeKey, withTeamLock, writeTeam } from './state.ts'
-import { installContinuableMemberSetup } from './harness-compat.ts'
+import { installContinuableMemberSetup, sessionOwnEvents } from './harness-compat.ts'
 import { resolveMemberLlmSelection } from './members.ts'
 import { checkpointInputs, checkpointReady, proposeWorkflow, workflowFingerprint, workflowState } from './workflow.ts'
 import { extractedTemplate, templateSeed, templateGenerationFormat, templateDefinitionParameter, validateAdaptation } from './templates.ts'
@@ -217,7 +217,7 @@ export function installWorkflowConversations(ctx: Context, config: ToolsConfig,
         agent = handle.agent
       }
       if (!boundDiscussion(team, agent)) throw new Error('讨论会话已失效')
-      const messages = agent.session.ownEvents().flatMap(event => {
+      const messages = sessionOwnEvents(agent.session).flatMap(event => {
         const message = event.type === 'user/message' ? event.data : event.type === 'assistant/message' ? event.data.message : undefined
         if (!message || (event.type === 'user/message' && message.source.kind !== 'user')) return []
         const text = message.content.filter(block => block.type === 'text').map(block => block.text).join('\n').trim()
@@ -302,7 +302,7 @@ export function installWorkflowConversations(ctx: Context, config: ToolsConfig,
       })
       ctx.effect(() => () => handle.dispose(), 'agent-teams: native discussion')
       await handle.agent.whenIdle()
-      const planningContext = ['adapt','graph'].includes(key) ? captain.session.ownEvents().flatMap(event=>{
+      const planningContext = ['adapt','graph'].includes(key) ? sessionOwnEvents(captain.session).flatMap(event=>{
         if(event.type!=='user/message'||event.data.source.kind!=='user')return []
         return event.data.content.filter(block=>block.type==='text').map(block=>block.text)
       }).slice(-8).join('\n').slice(-16000) : ''

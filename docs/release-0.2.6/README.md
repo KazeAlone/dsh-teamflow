@@ -14,10 +14,15 @@ Execution review checks that completed ancestors are retained, running owners ar
 - Completed reruns retained their historical context and therefore incorrectly displayed an updating warning in Deliverables. The warning now checks completion state; historical context remains available.
 - Single-node controls, workflow launching, and embedded discussion HTTP requests could remain pending indefinitely after a stalled connection. They now share bounded requests; discussion reads are cancelled on unmount. Uncertain mutations are not automatically replayed.
 - The secondary edit-and-rerun button could inherit form submission behavior inside the node editor. It is now explicitly a non-submit action.
+- Three workflow history readers bypassed the host compatibility adapter and failed on 0.1.2 hosts without `ownEvents()`. Discussion transcripts, planning context and template-generation context now use `sessionOwnEvents`, preserving the inherited-history boundary on legacy and modern hosts.
+- Fresh CI checkouts exposed a template test dependency on an untracked local output directory. Fixtures now use the operating system temporary directory.
+- The deterministic discussion adapter mistook legacy user-role tool results for new human turns, repeatedly requesting context. It now identifies human-source messages and bounds requests so a failing fixture cannot generate unbounded traces.
 
 ## Validation
 
-Local Windows validation includes frontend/backend typechecks, production build, the complete repository verify chain, focused status/delivery/network regressions, and generated artifact consistency. Real-host and browser checks are recorded with the final promotion.
+Local Windows validation passed frontend/backend typechecks, production build, the complete repository verify chain, focused status/delivery/network regressions, and generated artifact consistency. Packaged real-host scenarios passed on rc.2 and rc.5, including lifecycle, cold restore, fallback, failure, captain wakeup, progressive entry, authenticated Web approval, native discussion restoration, protocol compatibility and stability.
+
+Isolated Edge checks passed interrupted-task continuation, lost-response recovery without mutation replay, offline reconnection and English recovery controls. A real rc.5 Web host loaded the candidate, created a six-node template in a dedicated test workspace, and retained the 待配置 capsule after reload. The secondary rerun action was also exercised inside the real rendered editor with native validation disabled: it did not submit the form.
 
 ## Boundaries
 

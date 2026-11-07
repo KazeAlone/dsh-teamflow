@@ -19,7 +19,7 @@ import { flowControlVersion } from './client/task-control.ts'
 import { assembleTeamSnapshot } from './snapshot.ts'
 import { leadIdentityOfAsync, sessionLeadsTeamAsync } from './lineage.ts'
 import { resolveMemberLlmSelection, memberActivity } from './members.ts'
-import { drainMemberChildren } from './harness-compat.ts'
+import { drainMemberChildren, sessionOwnEvents } from './harness-compat.ts'
 import { readArtifactScope, readOutcomePreview } from './artifacts.ts'
 import { outcomeFiles } from './outcomes.ts'
 import { applyWorkflowProposal, checkpointInputs, checkpointReady, decideCheckpoint, parseWorkflowOperations, proposeWorkflow, workflowFingerprint, workflowState } from './workflow.ts'
@@ -110,7 +110,7 @@ export function installWorkflowWorkbench(ctx: Context, config: ToolsConfig, runt
       if (!captain) throw new Error('请先打开队长对话，使当前会话连接到宿主')
       const workspace = captain.session.header.cwd ?? process.cwd(), root = join(workspace, config.stateDir)
       if(action==='template_list'){
-        const context=caller.session.ownEvents().flatMap(event=>event.type==='user/message'&&event.data.source.kind==='user'?event.data.content.filter(b=>b.type==='text').map(b=>b.text):[]).slice(-4).join('\n').slice(-12000)
+        const context=sessionOwnEvents(caller.session).flatMap(event=>event.type==='user/message'&&event.data.source.kind==='user'?event.data.content.filter(b=>b.type==='text').map(b=>b.text):[]).slice(-4).join('\n').slice(-12000)
         const library=await listTemplates(libraryRoot);reply(200,{...library,templates:[...builtinTemplates(),...library.templates],context});return
       }
       if(action==='template_save'){
