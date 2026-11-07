@@ -223,6 +223,14 @@ export function sessionOwnEvents(session: Session): readonly SessionEvent[] {
   return legacy.events.slice(legacy.header.seedLength ?? 0)
 }
 
+/** Early hosts have one persona section; newer hosts split out its prefix. */
+export function deploymentPersonaOrder(systemPrompt: Context['systemPrompt']): number {
+  const read = systemPrompt.getSectionOrder as (name: string) => number | undefined
+  const order = read.call(systemPrompt, 'DEPLOYMENT_PERSONA_PREFIX') ?? read.call(systemPrompt, 'DEPLOYMENT_PERSONA')
+  if (typeof order !== 'number' || !Number.isFinite(order)) return unsupported('missing deployment persona placement')
+  return order
+}
+
 /** Install before the first request, including cold resume, with HMR cleanup. */
 export function installContinuableMemberSetup(ctx: Context, setup: Setup, allAgents = false): void {
   const runtime = boundary(ctx.subagents)

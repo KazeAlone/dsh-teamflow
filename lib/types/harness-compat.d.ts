@@ -111,6 +111,8 @@ export declare function agentTeamsSource(modern: AgentTeamsSource, observed?: nu
 export declare function onAgentReady(ctx: Context, listener: (agent: Agent, vetoable: boolean) => void): () => void;
 /** Read child-owned history, excluding any descriptor inherited from a parent. */
 export declare function sessionOwnEvents(session: Session): readonly SessionEvent[];
+/** Early hosts have one persona section; newer hosts split out its prefix. */
+export declare function deploymentPersonaOrder(systemPrompt: Context['systemPrompt']): number;
 /** Install before the first request, including cold resume, with HMR cleanup. */
 export declare function installContinuableMemberSetup(ctx: Context, setup: Setup, allAgents?: boolean): void;
 /** Queue a distinct host-authored turn; never substitute model-message steer. */

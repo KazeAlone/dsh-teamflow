@@ -11,7 +11,7 @@ import type { ToolsConfig } from './tools.ts'
 import type { TeamState } from './types.ts'
 import type { WorkflowDiscussion } from './workflow-types.ts'
 import { readTeam, readTeamSync, sanitizeKey, withTeamLock, writeTeam } from './state.ts'
-import { installContinuableMemberSetup, sessionOwnEvents } from './harness-compat.ts'
+import { deploymentPersonaOrder, installContinuableMemberSetup, sessionOwnEvents } from './harness-compat.ts'
 import { resolveMemberLlmSelection } from './members.ts'
 import { checkpointInputs, checkpointReady, proposeWorkflow, workflowFingerprint, workflowState } from './workflow.ts'
 import { extractedTemplate, templateSeed, templateGenerationFormat, templateDefinitionParameter, validateAdaptation } from './templates.ts'
@@ -191,7 +191,9 @@ export function installWorkflowConversations(ctx: Context, config: ToolsConfig,
     const saved = Object.entries(team?.workflow?.discussions ?? {}).find(([slot, d]) => slot === `discussion:${d.key}` && d.native?.label === address.label)?.[1]
     if (!saved?.native || team?.captainSessionId !== address.captainSessionId) throw new Error('讨论已结束或缺少原生会话配置')
     const stopFilter = childCtx.tools.restrict({ allow: discussionTools(saved.key) })
-    const stopPersona = childCtx.systemPrompt.section({ name: 'deployment:workflow-discussion', order: childCtx.systemPrompt.getSectionOrder('DEPLOYMENT_PERSONA_PREFIX'), text: PERSONA })
+    let stopPersona: () => void
+    try { stopPersona = childCtx.systemPrompt.section({ name: 'deployment:workflow-discussion', order: deploymentPersonaOrder(childCtx.systemPrompt), text: PERSONA }) }
+    catch (error) { stopFilter(); throw error }
     const stopAdmission = childCtx.on('agent/pre-step', async (payload, next) => {
       if (payload.agent.id !== child.id) return next()
       const admitted = await withTeamLock(`team:${root}:${address.teamId}`, async () => {

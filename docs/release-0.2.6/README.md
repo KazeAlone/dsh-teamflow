@@ -16,6 +16,7 @@ Execution review checks that completed ancestors are retained, running owners ar
 - The secondary edit-and-rerun button could inherit form submission behavior inside the node editor. It is now explicitly a non-submit action.
 - Three workflow history readers bypassed the host compatibility adapter and failed on 0.1.2 hosts without `ownEvents()`. Discussion transcripts, planning context and template-generation context now use `sessionOwnEvents`, preserving the inherited-history boundary on legacy and modern hosts.
 - Early 0.1.2 continuable setup registries did not cover main sessions or independently restored discussions. Workflow setup now also observes the host lifecycle, hides discussion-only tools from ordinary sessions, restores discussion restrictions before requests, and deduplicates overlapping hooks with reload cleanup.
+- Discussion persona placement now resolves the host's modern prefix or legacy persona section. An unavailable placement fails closed and releases the partially installed tool filter.
 - Fresh CI checkouts exposed a template test dependency on an untracked local output directory. Fixtures now use the operating system temporary directory.
 - The deterministic discussion adapter mistook legacy user-role tool results for new human turns, repeatedly requesting context. It now identifies human-source messages and bounds requests so a failing fixture cannot generate unbounded traces.
 

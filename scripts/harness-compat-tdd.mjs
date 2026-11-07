@@ -8,7 +8,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { Context } from '@deepseek-ai/cordis'
 import { SubagentRuntime } from '@deepseek-ai/dsh-subagent'
-import { guardSubagentDelivery, installContinuableMemberSetup, memberToolFilter, queueMemberPrompt, restrictableToolNames, sessionOwnEvents } from '../lib/harness-compat.js'
+import { deploymentPersonaOrder, guardSubagentDelivery, installContinuableMemberSetup, memberToolFilter, queueMemberPrompt, restrictableToolNames, sessionOwnEvents } from '../lib/harness-compat.js'
 import { installMemberSelectionRuntime, spawnMember } from '../lib/members.js'
 import { createTeamDir } from '../lib/state.js'
 import { CAPTAIN_TOOL_NAMES } from '../lib/tool-names.js'
@@ -42,6 +42,12 @@ function scope(extra = {}) {
 function modernRuntime() {
   return { [deliverKey]() {}, sendMessage() {} }
 }
+
+await test('workflow persona placement follows each host registry and rejects unknown placement', () => {
+  assert.equal(deploymentPersonaOrder({getSectionOrder:name=>({DEPLOYMENT_PERSONA_PREFIX:2,DEPLOYMENT_PERSONA:0})[name]}),2)
+  assert.equal(deploymentPersonaOrder({getSectionOrder:name=>({DEPLOYMENT_PERSONA:0})[name]}),0)
+  assert.throws(()=>deploymentPersonaOrder({getSectionOrder:()=>undefined}),/missing deployment persona placement/)
+})
 
 await test('legacy workflow setup covers main and independent cold sessions once, including reload cleanup', () => {
   let legacySetup, installed = 0, disposed = 0
