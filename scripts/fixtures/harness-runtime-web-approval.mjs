@@ -71,9 +71,12 @@ class WebApprovalAdapter extends LlmAdapter {
             assert.deepEqual(visible, userText.includes('提炼当前流程为可复用模板') ? ['agent_teams_template_propose','agent_teams_workflow_context'] : ['agent_teams_workflow_context','agent_teams_workflow_propose']);
             const proposalTool = options.tools?.find(t => t.name === 'agent_teams_workflow_propose');
             if (proposalTool) assert.equal(proposalTool.parameters.properties.operations.type, 'array', 'Native proposals use structured operations, not nested JSON strings');
-            const lastUser = options.messages.findLastIndex(m => m.role === 'user');
+            // Legacy hosts encode tool results and runtime snapshots as user-role
+            // messages too. Only a human-source message starts a discussion turn.
+            const lastUser = options.messages.findLastIndex(m => m.role === 'user' && m.source?.kind === 'user');
             const turn = options.messages.slice(lastUser + 1);
             const turnCalls = turn.flatMap(m => m.content ?? []).filter(b => b.type === 'tool-call');
+            assert.ok(events.filter(e => e.event === 'workflow-native-request' && e.sessionId === options.sessionId).length < 100, 'Native discussion fixture exceeded its request budget');
             record({ event: 'workflow-native-request', sessionId: options.sessionId, tools: options.tools, messages: options.messages });
             if (!turnCalls.some(c => c.name === 'agent_teams_workflow_context')) { yield* call('agent_teams_workflow_context', {}); return; }
             const context = blocks.filter(b => b.type === 'tool-result').flatMap(b => b.content ?? []).filter(b => b.type === 'text').map(b => { try { return JSON.parse(b.text); } catch { return {}; } }).findLast(v => v.discussion && v.base);
