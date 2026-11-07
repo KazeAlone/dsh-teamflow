@@ -50,7 +50,7 @@ test('pending configuration survives disk reload and blocks resume, claiming and
     await route.handler(req,{writeHead:code=>{status=code},end:body=>{result=JSON.parse(body)}})
   }
   assert.equal((await readTeam(stateRoot,'demo')).tasks[1].workflowConfigPending,true)
-  await request('resume_task',{taskId:'new'});assert.equal(status,409);assert.match(result.error,/配置/)
+  await request('resume_task',{taskId:'new',base:workflowFingerprint(await readTeam(stateRoot,'demo'))});assert.equal(status,409);assert.match(result.error,/配置/)
   await assert.rejects(definitions.get('agent_teams_claim_task').execute({task_id:'new',assignee:'worker'},{agent:captain,signal:new AbortController().signal}),/configuration/)
   const {writeTeam}=await import('../lib/state.js')
   const staged=await readTeam(stateRoot,'demo');staged.phase='staged';await writeTeam(stateRoot,staged)
@@ -138,7 +138,7 @@ test('downstream rerun labels explain waiting versus work or review ready for ne
   assert.deepEqual(taskReadiness(source,next).dependencies,['t1'])
   source.tasks[0].status='completed'
   assert.equal(taskReadiness(source,next).label,'需要重新执行')
-  assert.match(taskReadiness(source,next).detail,/重跑到此节点/)
+  assert.match(taskReadiness(source,next).detail,/运行到此节点/)
   next.checkpoint={round:2,history:[]}
   assert.equal(taskReadiness(source,next).label,'需要重新验收')
   assert.match(taskReadiness(source,next).detail,/人工检查仍需你确认/)

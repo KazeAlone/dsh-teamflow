@@ -33,8 +33,8 @@
 .workbenchBody { display:flex; flex-direction:column; flex:1; min-height:0; overflow:hidden; }
 .workbenchBody[hidden] { display:none; }
 .pageTabs { display:flex; align-items:center; gap:10px; padding:12px 20px; border-bottom:1px solid var(--wb-border); background:var(--wb-bg); flex-wrap:wrap; }
-.pageTabs .galleryEntry { border-color:color-mix(in srgb,#a333f5 35%,var(--wb-border)); background:color-mix(in srgb,#a333f5 7%,var(--wb-bg)); font-weight:600; }
-.pageTabs button[aria-pressed=true] { box-shadow:inset 0 -2px #a333f5; }
+
+
 .pageTabs small { color:var(--wb-muted); }
 .workbench button { font: inherit; font-size: 12px; line-height: 20px; color: inherit; background: var(--wb-bg); border: 1px solid var(--wb-border); border-radius: 8px; padding: 6px 10px; cursor: pointer; transition: background-color 140ms, border-color 140ms; }
 .workbench button:hover:not(:disabled) { background: color-mix(in srgb, var(--wb-accent) 5%, var(--wb-bg)); border-color: color-mix(in srgb, var(--wb-accent) 40%, var(--wb-border)); }
@@ -377,3 +377,24 @@ form.editor { display: flex; flex-direction: column; padding: 0; }
 
 label.galleryPermission { flex-direction: row; align-items: center; gap: 8px; }
 label.galleryPermission input[type="checkbox"] { width: auto; }
+/* Shared quiet navigation. A library entry is not a selected page. */
+.pageTabs { gap:6px; padding:10px 20px; }
+.pageTabs button { position:relative; min-height:32px; padding:6px 11px; gap:7px; border:1px solid transparent; border-radius:8px; color:var(--wb-muted); background:transparent; font-size:12px; font-weight:500; box-shadow:none; }
+.pageTabs button svg { width:16px; height:16px; }.pageTabs button { --teamflow-brand:currentColor; }
+.pageTabs button:hover:not(:disabled) { background:var(--wb-base); color:var(--wb-text); }
+.pageTabs button[aria-pressed=true] { color:var(--wb-accent); background:color-mix(in srgb,var(--wb-accent) 7%,var(--wb-bg)); border-color:color-mix(in srgb,var(--wb-accent) 13%,var(--wb-border)); }
+.pageTabs button[aria-pressed=true]::after { content:''; position:absolute; height:2px; border-radius:2px; bottom:-5px; left:12px; right:12px; background:var(--wb-accent); }
+.pageTabs button:not([aria-pressed]) { border-color:var(--wb-border); margin-left:6px; }
+/* Keep existing node dimensions and connection anchors; refine only the surface. */
+.node { border-radius:14px; box-shadow:0 3px 12px color-mix(in srgb,var(--wb-text) 5%,transparent); }
+.node[data-lifecycle] { border-left-color:color-mix(in srgb,var(--task-state-color) 24%,var(--wb-border)); border-top-color:color-mix(in srgb,var(--task-state-color) 64%,var(--wb-border)); }
+.drag { padding:7px 12px; border-bottom-color:color-mix(in srgb,var(--wb-border) 65%,transparent); }
+.workbench .nodeBody { padding:10px 12px; border-radius:0 0 13px 13px; gap:7px; }.nodeBody strong { font-weight:600; letter-spacing:.01em; }.nodeBody small { border-radius:6px; padding:2px 7px; }
+.node[data-member-match=true] { border-color:var(--wb-accent); }
+@media(prefers-reduced-motion:no-preference) {
+ .workbench[data-live=true] .node[data-lifecycle=inProgress] { animation:runningSurface 3.2s ease-in-out infinite; }
+ .workbench[data-live=true] .node[data-lifecycle=inProgress]::before { animation:runningNode 3.2s ease-in-out infinite; }
+}
+@keyframes runningSurface { 0%,100% { background:color-mix(in srgb,var(--wb-accent) 3%,var(--wb-bg)); } 50% { background:color-mix(in srgb,var(--wb-accent) 12%,var(--wb-bg)); } }
+
+.blockers { flex:none; padding:10px 20px; border-bottom:1px solid var(--wb-border); font-size:12px; background:var(--wb-bg); }.blockers>summary { cursor:pointer; color:var(--wb-muted); }.blockers>div { max-height:180px; overflow:auto; }.blockers section { padding:10px 0; border-top:1px solid var(--wb-border); margin-top:8px; }.blockers strong { margin-left:10px; }.blockers p { color:var(--wb-muted); margin:6px 0; }

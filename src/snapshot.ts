@@ -110,6 +110,7 @@ export interface TeamSnapshotOptions {
    * the model-facing status tool cannot report different delivery verdicts.
    */
   readonly workspacePath?: string
+  readonly auditWorkspace?: (workspace: string, team: TeamState) => Promise<ReturnType<typeof auditTeamWorkspace>>
 }
 
 /** The current task of a member: its first unfinished owned task. */
@@ -193,7 +194,10 @@ export async function assembleTeamSnapshot(
   const captainInbox = await readUnreadMailbox(stateRoot, state.id, CAPTAIN_KEY)
   // The panel must reach the same delivery conclusion as the status tool, so
   // it reads the same current bytes instead of trusting task records alone.
-  const audit = options.workspacePath === undefined ? undefined : auditTeamWorkspace(options.workspacePath, state)
+  const audit = options.workspacePath === undefined ? undefined : options.auditWorkspace
+    ? await options.auditWorkspace(options.workspacePath, state).catch(error => ({
+      artifacts: [], expandedScope: [], gaps: [{pattern:'.',reason:`Workspace audit unavailable: ${String(error)}`}],
+    })) : auditTeamWorkspace(options.workspacePath, state)
   const deliveryCheck = audit === undefined ? canDeclareDelivery(state) : canDeclareDelivery(state, audit)
   const loop = audit === undefined ? describeQualityLoop(state) : describeQualityLoop(state, audit)
   const staleById = new Map<string, string[]>()
@@ -258,6 +262,8 @@ export async function assembleTeamSnapshot(
 export async function collectTeamsActivity(
   ctx: Context,
   roots: readonly { workspace: string; stateRoot: string; workspacePath?: string }[],
+  captainIds?: ReadonlySet<string>,
+  auditWorkspace?: TeamSnapshotOptions['auditWorkspace'],
 ): Promise<TeamActivitySnapshot[]> {
   const snapshots: TeamActivitySnapshot[] = []
   for (const root of roots) {
@@ -275,7 +281,9 @@ export async function collectTeamsActivity(
       try {
         const state = await readTeam(root.stateRoot, entry.name)
         if (state === undefined) continue
+        if (captainIds && !captainIds.has(state.captainSessionId)) continue
         snapshots.push(await assembleTeamSnapshot(ctx, root.stateRoot, root.workspace, state, {
+          auditWorkspace,
           ...root.workspacePath === undefined ? {} : { workspacePath: root.workspacePath },
         }))
       } catch {
@@ -297,6 +305,7 @@ export async function collectTeamsActivity(
 export async function collectArchivedTeamsActivity(
   ctx: Context,
   roots: readonly { workspace: string; stateRoot: string }[],
+  captainIds?: ReadonlySet<string>,
 ): Promise<TeamActivitySnapshot[]> {
   const snapshots: TeamActivitySnapshot[] = []
   for (const root of roots) {
@@ -304,6 +313,7 @@ export async function collectArchivedTeamsActivity(
       try {
         const state = await readArchivedTeam(root.stateRoot, teamId)
         if (state === undefined) continue
+        if (captainIds && !captainIds.has(state.captainSessionId)) continue
         snapshots.push(await assembleTeamSnapshot(
           ctx,
           join(root.stateRoot, 'archive'),

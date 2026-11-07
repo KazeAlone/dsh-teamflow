@@ -57,3 +57,10 @@ test('showcase labels distinguish reports from approval and fully localize', () 
   const html=renderToStaticMarkup(React.createElement(WorkflowLocale,{t:key=>en[key]??key},React.createElement(OutcomeShowcase,{team,sessionId:'captain',archived:false,onTask(){}})))
   assert.match(html,/No model calls/);assert.match(html,/agent-reported records/);assert.match(html,/Declared deliverable/);assert.doesNotMatch(html,/[\u3400-\u9fff]/)
 })
+
+test('completed reruns show finished deliveries instead of an updating warning',()=>{
+ const task={id:'work',subject:'Delivery',status:'completed',dependencies:[],output:'Done',attempt:2,workflowRerunContext:{instructions:'Fix',previousStatus:'completed',requestedAt:1}};
+ const render=task=>renderToStaticMarkup(React.createElement(OutcomeShowcase,{team:{id:'demo',tasks:[task],members:[]},sessionId:'captain',archived:false,onTask(){}}));
+ assert.doesNotMatch(render(task),/任务正在更新或等待重跑/);
+ assert.match(render({...task,status:'in_progress'}),/任务正在更新或等待重跑/);
+});

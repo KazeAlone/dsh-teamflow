@@ -1,3 +1,4 @@
+import { workflowRequest } from './workflow-request.ts'
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import type { TeamState } from '../types.ts'
 import { outcomeCsv, outcomeFiles, type OutcomePreview } from '../outcomes.ts'
@@ -39,10 +40,8 @@ export function OutcomeShowcase({ team, sessionId, archived, onTask }: { team: T
     const controller = new AbortController()
     void (async () => {
       try {
-        const response = await fetch('/plugins/dsh-agent-teams/workflow', { method:'POST', headers:{'content-type':'application/json'}, signal:controller.signal,
-          body:JSON.stringify({action:'outcome_preview',sessionId,teamId:team.id,taskId:task.id,path:validFile,archived}) })
-        const body = await response.json() as { preview?: OutcomePreview; error?: string }
-        if (!response.ok || !body.preview) throw new Error(body.error ?? `HTTP ${response.status}`)
+        const body = await workflowRequest<{preview?:OutcomePreview;error?:string}>({action:'outcome_preview',sessionId,teamId:team.id,taskId:task.id,path:validFile,archived},fetch,12000,controller.signal)
+        if (!body.preview) throw new Error(body.error ?? 'Preview unavailable')
         if (!controller.signal.aborted) setResult({key,preview:body.preview})
       } catch (err) { if (!controller.signal.aborted) setResult({key,error:err instanceof Error ? err.message : String(err)}) }
     })()
@@ -54,13 +53,13 @@ export function OutcomeShowcase({ team, sessionId, archived, onTask }: { team: T
   const gates = team.tasks.filter(g => g.checkpoint && g.dependencies.includes(task?.id ?? ''))
   const statusText = (status: OutcomePreview['status']) => l(({ready:'文件可预览',missing:'文件不存在或已被移除',blocked:'此路径不支持预览：仅允许工作区内明确声明的普通文件。',unsupported:'此文件类型或编码暂不支持预览。',too_large:'文件超过预览上限：文本 256 KiB，图片 4 MiB。',unreadable:'文件无法读取或读取期间已变化，请刷新重试。'} as const)[status])
   function selectTask(id: string) { setTaskId(id); setFile(undefined); setRaw(false) }
-  return <section className={css.showcase} aria-label={l('成果展台')}>
-    <header className={css.header}><div><h2>{l('成果')}</h2><p>{l('根据任务记录整理，不调用模型。')}</p></div><span>{l('{0} 个任务有提交说明 · {1} 个文件条目', tasks.filter(t => !!t.output).length, tasks.reduce((n,t) => n + outcomeFiles(t).length, 0))}</span></header>
+  return <section className={css.showcase} aria-label={l('交付内容')}>
+    <header className={css.header}><div><h2>{l('交付内容')}</h2><p>{l('根据任务记录整理，不调用模型。')}</p></div><span>{l('{0} 个任务有提交说明 · {1} 个文件条目', tasks.filter(t => !!t.output).length, tasks.reduce((n,t) => n + outcomeFiles(t).length, 0))}</span></header>
     {!tasks.length ? <p className={css.empty}>{l('暂无执行任务成果。任务提交后会在这里显示。')}</p> : <div className={css.layout}>
       <nav className={css.tasks} aria-label={l('成果来源任务')}>{tasks.map(t => <button key={t.id} aria-pressed={task?.id === t.id} onClick={() => selectTask(t.id)}><strong>{t.subject}</strong><small>{taskReadiness(team,t,l).label} · {t.assignee || l('未分配')}</small><span>{t.output ? l('已提交说明') : l('暂无提交说明')} · {l('{0} 个文件条目', outcomeFiles(t).length)}</span></button>)}</nav>
       {task && <article className={css.detail}>
         <header className={css.taskHeader}><div><h3>{task.subject}</h3><p>{l('来源任务')} · {task.id} · {task.assignee || l('未分配')} · {l('第 {0} 次执行', task.attempt ?? 0)}</p></div><button onClick={() => onTask(task.id)}>{l('查看原任务')}</button></header>
-        {(task.workflowRerunRequired || task.workflowRerunContext || task.status === 'in_progress' || task.status === 'claimed') && <p className={css.notice}>{l('任务正在更新或等待重跑；当前文件不代表本轮已完成交付。')}</p>}
+        {(task.workflowRerunRequired || (task.workflowRerunContext && task.status !== 'completed') || task.status === 'in_progress' || task.status === 'claimed') && <p className={css.notice}>{l('任务正在更新或等待重跑；当前文件不代表本轮已完成交付。')}</p>}
         <div className={css.tabs}><button aria-pressed={validFile === undefined} onClick={() => setFile(undefined)}>{l('提交说明与验证')}</button><span>{l('文件来自约定交付或报告变更，是否存在需打开核对。')}</span></div>
         {!!files.length && <div className={css.files} aria-label={l('成果文件')}>{files.slice(0,200).map(f => <button key={f.path} aria-pressed={validFile === f.path} onClick={() => { setFile(f.path); setRaw(false) }}><strong>{f.path}</strong><small>{f.declared ? l('约定交付物') : l('报告变更')}{f.declared && f.changed ? ` · ${l('报告变更')}` : ''}</small></button>)}</div>}
         {files.length > 200 && <p>{l('仅展示前 200 个文件条目，其余请查看原任务。')}</p>}

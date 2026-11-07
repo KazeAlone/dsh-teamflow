@@ -178,9 +178,20 @@ export function getActivitySnapshotsSnapshot(): ActivitySnapshots {
 
 /** Publish one or both successful state-route responses. */
 export function updateActivitySnapshots(update: Partial<ActivitySnapshots>): void {
+  // Network JSON produces fresh objects even while nothing changed. Retain
+  // stable references so every poll does not rerender every mounted card.
+  const reconcile = (incoming: readonly ActivityTeam[] | undefined, previous: readonly ActivityTeam[]) => {
+    if (!incoming || incoming === previous) return previous
+    const byId = new Map(previous.map(team => [targetKey(team.captainSessionId, team.teamId), team]))
+    const next = incoming.map(team => {
+      const old = byId.get(targetKey(team.captainSessionId, team.teamId))
+      return old && JSON.stringify(old) === JSON.stringify(team) ? old : team
+    })
+    return next.length === previous.length && next.every((team, i) => team === previous[i]) ? previous : next
+  }
   const next = {
-    teams: update.teams ?? activitySnapshots.teams,
-    archivedTeams: update.archivedTeams ?? activitySnapshots.archivedTeams,
+    teams: reconcile(update.teams, activitySnapshots.teams),
+    archivedTeams: reconcile(update.archivedTeams, activitySnapshots.archivedTeams),
   }
   if (next.teams === activitySnapshots.teams && next.archivedTeams === activitySnapshots.archivedTeams) return
   activitySnapshots = next
@@ -265,6 +276,11 @@ export function startActivityPolling(
     return { firstTick: Promise.resolve(), stop: () => {} }
   }
   const fetchState = runtime.fetchState ?? ((url, init) => fetch(url, init))
+  const sessions = new Set(monitorTargets.map(target => target.sessionId))
+  if (discoverySessionId) sessions.add(discoverySessionId)
+  const query = new URLSearchParams()
+  for (const session of sessions) query.append('sessionId', session)
+  const stateUrl = `${ACTIVITY_STATE_URL}?${query}`
   const schedule = runtime.schedule ?? ((callback, intervalMs) => setInterval(callback, intervalMs))
   const cancel = runtime.cancel ?? ((timer) => { clearInterval(timer as ReturnType<typeof setInterval>) })
   const publishSnapshots = runtime.publishSnapshots ?? updateActivitySnapshots
@@ -287,8 +303,9 @@ export function startActivityPolling(
     if (inFlight || cancelled) return
     inFlight = true
     controller = new AbortController()
+    const timeout=setTimeout(()=>controller?.abort(),12000)
     try {
-      const liveResponse = await fetchState(ACTIVITY_STATE_URL, {
+      const liveResponse = await fetchState(stateUrl, {
         cache: 'no-store',
         signal: controller.signal,
       })
@@ -326,7 +343,7 @@ export function startActivityPolling(
       // host archive no longer exists; a discovery session that already
       // upgraded keeps polling, and a still-probing one keeps probing, so a
       // team created later in the same session stays discoverable.
-      const archivedResponse = await fetchState(`${ACTIVITY_STATE_URL}?archived=1`, {
+      const archivedResponse = await fetchState(`${stateUrl}&archived=1`, {
         cache: 'no-store',
         signal: controller.signal,
       })
@@ -338,10 +355,11 @@ export function startActivityPolling(
       discoveryComplete = true
       settleTargets(new Set(missing.map((target) => target.key)))
     } catch (error: unknown) {
-      if ((error as { name?: unknown })?.name === 'AbortError') return
+      if (cancelled && (error as { name?: unknown })?.name === 'AbortError') return
       if (!cancelled) runtime.onStatus?.('error')
       // Host restarting; keep the last snapshot and retry on the next tick.
     } finally {
+      clearTimeout(timeout)
       inFlight = false
     }
   }

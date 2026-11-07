@@ -2,10 +2,17 @@ import assert from 'node:assert/strict';
 import { createUserMessage } from '@deepseek-ai/dsh-llm';
 import { writeFileSync } from 'node:fs';
 
+export function ownSessionEvents(session) {
+  if (typeof session.ownEvents === 'function') return session.ownEvents();
+  assert.ok(Array.isArray(session.events), 'Unsupported host Session event-read API');
+  return session.events.slice(session.header.seedLength ?? 0);
+}
+
 /** Runs against the packaged plugin, real authentication, scheduler and LLM service. */
 export async function exerciseWorkflow({ baseUrl, cookie, captain, readTeam, record, ctx, events }) {
   let activeSession = captain.id, activeTeam = 'runtime-lab';
   const post = async (action, fields = {}, expected = 200) => {
+    if(action==='resume_task'&&fields.base===undefined)fields={...fields,base:(await post('state')).base};
     const response = await fetch(baseUrl + '/plugins/dsh-agent-teams/workflow', {
       method: 'POST', headers: { 'content-type': 'application/json', origin: baseUrl, cookie },
       body: JSON.stringify({ sessionId: activeSession, teamId: activeTeam, action, ...fields }), signal: AbortSignal.timeout(25000),
@@ -38,6 +45,13 @@ export async function exerciseWorkflow({ baseUrl, cookie, captain, readTeam, rec
   const unauthorized = await fetch(baseUrl + '/plugins/dsh-agent-teams/workflow', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ sessionId: captain.id, teamId: 'runtime-lab', action: 'state' }) });
   assert.ok([401, 403].includes(unauthorized.status));
   await post('state', { teamId: 'missing-team' }, 409);
+  // Completion is reported before the host's idle handler persists member
+  // status. Settle that independent write before proving previews are read-only.
+  const idleDeadline = Date.now() + 25000;
+  while (readTeam().members.some(member => member.status === 'working')) {
+    assert.ok(Date.now() < idleDeadline, 'Completed members did not settle before preview assertions');
+    await new Promise(resolve => setTimeout(resolve, 25));
+  }
   writeFileSync('outcome-report.md','# Packaged outcome preview');
   const beforePreview=(await post('state')).team, callsBeforePreview=events.filter(e=>e.event==='web-request').length;
   const preview=await post('outcome_preview',{taskId:'t1',path:'outcome-report.md'});
@@ -174,7 +188,7 @@ export async function exerciseWorkflow({ baseUrl, cookie, captain, readTeam, rec
   ctx.effect(()=>()=>appliedCaptain.dispose());await appliedCaptain.agent.whenIdle();activeSession=appliedCaptain.agent.id;activeTeam='';
   result=await post('template_apply',{templateId:saved.template.id,version:saved.template.version,name:'Operator B',description:'Implement operator B'});activeTeam=result.team.id;
   await appliedCaptain.agent.whenIdle();
-  const captainEvents=appliedCaptain.agent.session.ownEvents();
+  const captainEvents=ownSessionEvents(appliedCaptain.agent.session);
   assert.equal(ctx.get('sessionTitle').get(appliedCaptain.agent.session)?.title,'Operator B');
   assert.equal(ctx.get('sessionTitle').get(appliedCaptain.agent.session)?.source.kind,'user');
   assert.ok(captainEvents.some(e=>e.type==='turn/start'),'Template application must engage the blank main session');

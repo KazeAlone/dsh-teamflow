@@ -1,0 +1,41 @@
+/** workflow-preview: ACTIVITY=1, RUNNING=1, OUTCOMES=1. */
+import assert from 'node:assert/strict'
+import {mkdirSync} from 'node:fs'
+import {resolve} from 'node:path'
+const {chromium}=await import(process.env.TEAMFLOW_PLAYWRIGHT_MODULE??'playwright')
+const output=resolve('output/visual-polish');mkdirSync(output,{recursive:true})
+const browser=await chromium.launch({channel:'msedge',headless:true})
+try {
+ const page=await browser.newPage({viewport:{width:1440,height:1000}}),errors=[]
+ page.on('pageerror',e=>errors.push(e.message))
+ await page.goto('http://127.0.0.1:8379')
+ const badge=page.locator('[data-agent-teams-collapsed]');await badge.waitFor()
+ assert.match(await badge.innerText(),/待验收/);assert.match(await badge.innerText(),/25/)
+ const box=await badge.boundingBox();assert.ok(box.height<=30&&box.width<=180)
+ await page.screenshot({path:resolve(output,'capsule-light.png')})
+ await badge.click()
+ const dialog=page.getByRole('dialog',{name:'TeamFlow 编排工作台'}),nav=dialog.getByRole('navigation',{name:'Teamflow 页面'})
+ const gallery=nav.getByRole('button',{name:/流程模板库/})
+ assert.equal(await gallery.getAttribute('aria-pressed'),'false')
+ assert.equal(await gallery.evaluate(e=>getComputedStyle(e).backgroundColor),'rgba(0, 0, 0, 0)')
+ const running=dialog.locator('[data-lifecycle="inProgress"]').filter({has:page.locator('[data-node-playback]')}).first()
+ await running.waitFor()
+ assert.match(await running.evaluate(e=>getComputedStyle(e).animationName),/runningSurface/)
+ await page.screenshot({path:resolve(output,'workflow-light.png')})
+ await nav.getByRole('button',{name:'交付内容',exact:true}).click()
+ await page.getByRole('region',{name:'交付内容',exact:true}).waitFor()
+ assert.equal(await gallery.getAttribute('aria-pressed'),'false')
+ await page.screenshot({path:resolve(output,'deliverables-light.png')})
+ await nav.getByRole('button',{name:'当前流程',exact:true}).click()
+ await page.emulateMedia({colorScheme:'dark',reducedMotion:'reduce'});await page.evaluate(()=>document.documentElement.style.colorScheme='dark')
+ assert.equal(await running.evaluate(e=>getComputedStyle(e).animationName),'none')
+ await page.screenshot({path:resolve(output,'workflow-dark.png')})
+ await page.setViewportSize({width:720,height:900})
+ await page.screenshot({path:resolve(output,'workflow-narrow.png')})
+ assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false)
+ await dialog.getByRole('button',{name:'关闭编排工作台',exact:true}).click()
+ await page.getByRole('combobox',{name:'Preview language'}).selectOption('en')
+ await page.screenshot({path:resolve(output,'capsule-dark-en.png')})
+ assert.match(await badge.innerText(),/Review/);assert.deepEqual(errors,[])
+ console.log('PASS capsule progress and navigation, inactive gallery styling, deliveries, running surface animation, reduced motion, dark and narrow layouts')
+} finally {await browser.close()}

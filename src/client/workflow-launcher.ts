@@ -1,3 +1,4 @@
+import { workflowRequest } from './workflow-request.ts'
 /** Session and workspace boundaries for the global Workflow entry. */
 import type { ISessions, SessionReference } from '@deepseek-ai/dsh-api-session-controller/client'
 import type { WorkspaceView } from '@deepseek-ai/dsh-api-workspace-controller/client'
@@ -16,10 +17,7 @@ export function selectedWorkflowWorkspace(workspaces: readonly WorkspaceView[], 
   return current && sessions.byId[current]?.blank !== true ? workspaces.find(workspace => workspace.sessionIds.includes(current)) : undefined
 }
 export async function workflowLauncherRequest(action: string, fields: Record<string,unknown> = {}): Promise<{team?:TeamState;directoryPicker?:'native'|'browse'|'unavailable'}> {
-  const response = await fetch('/plugins/dsh-agent-teams/workflow',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({action,...fields})})
-  const result = await response.json()
-  if (!response.ok) throw new Error(result.error ?? 'HTTP ' + response.status)
-  return result
+  return workflowRequest({action,...fields})
 }
 /** Owns one fresh conversation across retries, and releases it with the panel. */
 export class WorkflowLaunchController {

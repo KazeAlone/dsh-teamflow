@@ -1,3 +1,4 @@
+import { workflowRequest } from './workflow-request.ts'
 import { workflowMessage } from './workflow-text.ts'
 import { useWorkflowText } from './workflow-i18n.tsx'
 import { useRef, useState, type ReactNode } from 'react'
@@ -15,9 +16,8 @@ export function WorkflowHistory({ name, children, restore }: { name: string; chi
     if(!restore || busy) return
     setBusy(true);setError('')
     try {
-      const response=await fetch('/plugins/dsh-agent-teams/workflow',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({action:'restore_archive',sessionId:restore.sessionId,teamId:restore.teamId})})
-      const result=await response.json() as {activity?:ActivityTeam;error?:string}
-      if(!response.ok || !result.activity) throw new Error(result.error??l("恢复失败，请重新连接后重试"))
+      const result=await workflowRequest<{activity?:ActivityTeam;error?:string}>({action:'restore_archive',sessionId:restore.sessionId,teamId:restore.teamId})
+      if(!result.activity) throw new Error(result.error??l("恢复失败，请重新连接后重试"))
       setRestored(true);dialog.current?.close()
       publishWorkflowActivity(result.activity)
     } catch(err) {setError(err instanceof Error?err.message:String(err))} finally {setBusy(false)}

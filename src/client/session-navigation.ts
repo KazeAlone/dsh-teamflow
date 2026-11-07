@@ -51,6 +51,8 @@ export function openWorkflowConversation(
  * the fallback preserves ordinary-session navigation. New layouts also select
  * the Conversation panel and cancel catalog refreshes superseded by navigation.
  */
+const navigationEpochs = new WeakMap<AgentTeamsSessionNavigator, number>()
+const catalogReads = new WeakMap<AgentTeamsSessionNavigator, Map<SessionId, Promise<void>>>()
 export async function openAgentTeamMember(
   sessions: AgentTeamsSessionNavigator,
   parentSessionId: SessionId,
@@ -58,6 +60,8 @@ export async function openAgentTeamMember(
   layout?: AgentTeamsLayoutNavigator,
   workspace?: AgentTeamsWorkspaceNavigator,
 ): Promise<'subagent' | 'session' | 'cancelled'> {
+  const epoch=(navigationEpochs.get(sessions) ?? 0)+1
+  navigationEpochs.set(sessions,epoch)
   if (parentSessionId === childSessionId) {
     if (workspace) workspace.openSession(childSessionId)
     else if (sessions.open) sessions.open(childSessionId)
@@ -77,8 +81,28 @@ export async function openAgentTeamMember(
     return 'session'
   }
 
-  await sessions.refreshSubagents(parentSessionId)
-  if (navigation?.aborted) return 'cancelled'
+  // A retained address has already been resolved by the host. Refreshing the
+  // parent's entire catalog on every click adds a serial remote round trip.
+  const known = sessions.subagentAddress?.(childSessionId)
+  if (known?.parentSessionId === parentSessionId && known.childSessionId === childSessionId) {
+    if (navigation?.aborted) return 'cancelled'
+    sessions.openSubagent(known)
+    layout?.selectPanel?.(null)
+    return 'subagent'
+  }
+  let reads=catalogReads.get(sessions)
+  if(!reads){reads=new Map();catalogReads.set(sessions,reads)}
+  let pending=reads.get(parentSessionId)
+  if(!pending){
+    pending=Promise.resolve().then(()=>sessions.refreshSubagents!(parentSessionId))
+    reads.set(parentSessionId,pending)
+    void pending.finally(()=>{if(reads.get(parentSessionId)===pending)reads.delete(parentSessionId)}).catch(()=>{})
+  }
+  try {await pending} catch(error) {
+    if(navigation?.aborted || navigationEpochs.get(sessions)!==epoch)return 'cancelled'
+    throw error
+  }
+  if (navigation?.aborted || navigationEpochs.get(sessions)!==epoch) return 'cancelled'
   const retained = sessions.subagentAddress?.(childSessionId)
   sessions.openSubagent(retained?.parentSessionId === parentSessionId
     ? retained

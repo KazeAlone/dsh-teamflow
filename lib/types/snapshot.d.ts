@@ -8,6 +8,7 @@
  * @module dsh-agent-teams/snapshot
  */
 import type { Context } from '@deepseek-ai/cordis';
+import { auditTeamWorkspace } from './workspace-audit.ts';
 import type { MemberStatus, TeamState } from './types.ts';
 /** Visual task state for the activity panel. */
 export type VisualTaskState = 'blocked' | 'open' | 'claimed' | 'running' | 'completed' | 'failed' | 'cancelled';
@@ -97,6 +98,7 @@ export interface TeamSnapshotOptions {
      * the model-facing status tool cannot report different delivery verdicts.
      */
     readonly workspacePath?: string;
+    readonly auditWorkspace?: (workspace: string, team: TeamState) => Promise<ReturnType<typeof auditTeamWorkspace>>;
 }
 /** Compact `provider/model` route for the activity panel, or just the model. */
 export declare function memberModelRoute(member: {
@@ -122,7 +124,7 @@ export declare function collectTeamsActivity(ctx: Context, roots: readonly {
     workspace: string;
     stateRoot: string;
     workspacePath?: string;
-}[]): Promise<TeamActivitySnapshot[]>;
+}[], captainIds?: ReadonlySet<string>, auditWorkspace?: TeamSnapshotOptions['auditWorkspace']): Promise<TeamActivitySnapshot[]>;
 /**
  * Collect every archived team under the given workspace state roots (the
  * `archive/` subdirectory of each state root). Used by the historic panel
@@ -134,4 +136,4 @@ export declare function collectTeamsActivity(ctx: Context, roots: readonly {
 export declare function collectArchivedTeamsActivity(ctx: Context, roots: readonly {
     workspace: string;
     stateRoot: string;
-}[]): Promise<TeamActivitySnapshot[]>;
+}[], captainIds?: ReadonlySet<string>): Promise<TeamActivitySnapshot[]>;

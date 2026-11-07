@@ -127,7 +127,8 @@ export interface TeamTask {
     /** Explicit rerun context, kept separate from the durable task contract. */
     workflowRerunContext?: {
         instructions: string;
-        previousStatus: 'completed' | 'failed' | 'cancelled';
+        continuation?: boolean;
+        previousStatus: 'completed' | 'failed' | 'cancelled' | 'pending';
         previousOutput?: string;
         previousAttemptId?: string;
         requestedAt: number;

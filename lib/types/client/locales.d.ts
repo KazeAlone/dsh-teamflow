@@ -4,6 +4,17 @@ export declare const AGENT_TEAMS_LOCALE_NAMESPACE = "agentTeams";
 /** Simplified Chinese dictionary (the key-set source of truth). */
 export declare const zh: {
     'language.code': string;
+    'activity.state.running': string;
+    'activity.state.review': string;
+    'activity.state.attention': string;
+    'activity.state.configuration': string;
+    'activity.state.paused': string;
+    'activity.state.completed': string;
+    'activity.state.archived': string;
+    'activity.state.history': string;
+    'activity.state.staged': string;
+    'activity.state.waiting': string;
+    'activity.summary': string;
     'workflow.executionChat': string;
     'task.control.rerun': string;
     'task.control.rerunTask': string;
@@ -272,6 +283,17 @@ export type AgentTeamsLocaleKey = keyof typeof zh;
 /** English dictionary, checked complete against the Chinese source key set. */
 export declare const en: {
     'language.code': string;
+    'activity.state.running': string;
+    'activity.state.review': string;
+    'activity.state.attention': string;
+    'activity.state.configuration': string;
+    'activity.state.paused': string;
+    'activity.state.completed': string;
+    'activity.state.archived': string;
+    'activity.state.history': string;
+    'activity.state.staged': string;
+    'activity.state.waiting': string;
+    'activity.summary': string;
     'workflow.executionChat': string;
     'task.control.rerun': string;
     'task.control.rerunTask': string;

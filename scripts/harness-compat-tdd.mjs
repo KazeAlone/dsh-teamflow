@@ -8,7 +8,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { Context } from '@deepseek-ai/cordis'
 import { SubagentRuntime } from '@deepseek-ai/dsh-subagent'
-import { guardSubagentDelivery, installContinuableMemberSetup, memberToolFilter, queueMemberPrompt, restrictableToolNames, sessionOwnEvents } from '../lib/harness-compat.js'
+import { deploymentPersonaOrder, guardSubagentDelivery, installContinuableMemberSetup, memberToolFilter, queueMemberPrompt, restrictableToolNames, sessionOwnEvents } from '../lib/harness-compat.js'
 import { installMemberSelectionRuntime, spawnMember } from '../lib/members.js'
 import { createTeamDir } from '../lib/state.js'
 import { CAPTAIN_TOOL_NAMES } from '../lib/tool-names.js'
@@ -42,6 +42,36 @@ function scope(extra = {}) {
 function modernRuntime() {
   return { [deliverKey]() {}, sendMessage() {} }
 }
+
+await test('workflow persona placement follows each host registry and rejects unknown placement', () => {
+  assert.equal(deploymentPersonaOrder({getSectionOrder:name=>({DEPLOYMENT_PERSONA_PREFIX:2,DEPLOYMENT_PERSONA:0})[name]}),2)
+  assert.equal(deploymentPersonaOrder({getSectionOrder:name=>({DEPLOYMENT_PERSONA:0})[name]}),0)
+  assert.throws(()=>deploymentPersonaOrder({getSectionOrder:()=>undefined}),/missing deployment persona placement/)
+})
+
+await test('legacy workflow setup covers main and independent cold sessions once, including reload cleanup', () => {
+  let legacySetup, installed = 0, disposed = 0
+  const root = child(), cold = child(), member = child()
+  const ctx = scope({subagents:{registerContinuableSetup:fn=>{legacySetup=fn}},agents:{list:()=>[root]}})
+  installContinuableMemberSetup(ctx, () => {installed++;return()=>{disposed++}}, true)
+  assert.equal(installed,1,'live main sessions are hydrated')
+  ctx.emit('agent/session-start',{agent:cold,source:'resume'})
+  assert.equal(installed,2,'independent cold discussion has no subagent descriptor registry callback')
+  const memberDispose=legacySetup({...member.ctx,agent:member})
+  ctx.emit('agent/session-start',{agent:member})
+  legacySetup({...cold.ctx,agent:cold})()
+  assert.equal(installed,3,'overlapping lifecycle hooks must not install twice')
+  ctx.dispose();memberDispose();cold.ctx.dispose();root.ctx.dispose();member.ctx.dispose()
+  assert.equal(disposed,3,'plugin reload and agent teardown clean up exactly once')
+})
+
+await test('legacy independent workflow setup failure blocks the first model request', async () => {
+  const agent=child(),ctx=scope({subagents:{registerContinuableSetup(){}}})
+  installContinuableMemberSetup(ctx,()=>{throw Error('missing discussion binding')},true)
+  ctx.emit('agent/session-start',{agent,source:'resume'})
+  await assert.rejects(requestSelection(agent),/workflow initialization failed/)
+  ctx.dispose();agent.ctx.dispose()
+})
 
 function child({ workspace = process.cwd(), effort, inherited = false } = {}) {
   const descriptor = { type: 'subagent/descriptor', data: {

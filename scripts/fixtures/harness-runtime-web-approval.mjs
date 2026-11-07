@@ -9,7 +9,7 @@ import { appendFileSync, readFileSync } from 'node:fs';
 import { createHash, randomUUID } from 'node:crypto';
 import { join } from 'node:path';
 import { createUserMessage, LlmAdapter, ToolCallId } from '@deepseek-ai/dsh-llm';
-import { exerciseWorkflow } from './harness-workflow-case.mjs';
+import { exerciseWorkflow, ownSessionEvents } from './harness-workflow-case.mjs';
 
 const events = [];
 const handledControlMessages = new Set();
@@ -71,9 +71,12 @@ class WebApprovalAdapter extends LlmAdapter {
             assert.deepEqual(visible, userText.includes('提炼当前流程为可复用模板') ? ['agent_teams_template_propose','agent_teams_workflow_context'] : ['agent_teams_workflow_context','agent_teams_workflow_propose']);
             const proposalTool = options.tools?.find(t => t.name === 'agent_teams_workflow_propose');
             if (proposalTool) assert.equal(proposalTool.parameters.properties.operations.type, 'array', 'Native proposals use structured operations, not nested JSON strings');
-            const lastUser = options.messages.findLastIndex(m => m.role === 'user');
+            // Legacy hosts encode tool results and runtime snapshots as user-role
+            // messages too. Only a human-source message starts a discussion turn.
+            const lastUser = options.messages.findLastIndex(m => m.role === 'user' && m.source?.kind === 'user');
             const turn = options.messages.slice(lastUser + 1);
             const turnCalls = turn.flatMap(m => m.content ?? []).filter(b => b.type === 'tool-call');
+            assert.ok(events.filter(e => e.event === 'workflow-native-request' && e.sessionId === options.sessionId).length < 100, 'Native discussion fixture exceeded its request budget');
             record({ event: 'workflow-native-request', sessionId: options.sessionId, tools: options.tools, messages: options.messages });
             if (!turnCalls.some(c => c.name === 'agent_teams_workflow_context')) { yield* call('agent_teams_workflow_context', {}); return; }
             const context = blocks.filter(b => b.type === 'tool-result').flatMap(b => b.content ?? []).filter(b => b.type === 'text').map(b => { try { return JSON.parse(b.text); } catch { return {}; } }).findLast(v => v.discussion && v.base);
@@ -180,12 +183,12 @@ export function apply(ctx) {
             ctx.effect(()=>()=>templateMain.dispose());await templateMain.agent.whenIdle();
             assert.equal(ctx.get('sessionTitle').get(templateMain.agent.session)?.title,'Operator B','Template title survives cold restoration');
             assert.notEqual(templateMain.agent.session.header.origin,'subagent');
-            assert.ok(templateMain.agent.session.ownEvents().some(e=>e.type==='turn/start'),'Template main conversation remains engaged after restart');
-            assert.ok(templateMain.agent.session.ownEvents().some(e=>e.type==='user/message'&&e.data.content.some(b=>b.type==='text'&&b.text.includes(templateOwner.teamId))));
+            assert.ok(ownSessionEvents(templateMain.agent.session).some(e=>e.type==='turn/start'),'Template main conversation remains engaged after restart');
+            assert.ok(ownSessionEvents(templateMain.agent.session).some(e=>e.type==='user/message'&&e.data.content.some(b=>b.type==='text'&&b.text.includes(templateOwner.teamId))));
             const saved = JSON.parse(readFileSync('workflow-resume.json', 'utf8'));
             const restored = await ctx.agents.resume({ resumeSessionId: saved.nativeId, agentOptions: { provider: 'runtime-lab', model: 'manual-fixture' } });
             ctx.effect(() => () => restored.dispose()); await restored.agent.whenIdle();
-            const history = restored.agent.session.ownEvents();
+            const history = ownSessionEvents(restored.agent.session);
             assert.ok(saved.nativeId.startsWith('session-at-discussion-'));
             assert.ok(!history.some(event => event.type === 'agent-teams/workflow-discussion'), 'Only native host records belong in the session log');
             assert.ok(history.length > 5, 'Native history must survive process restart');

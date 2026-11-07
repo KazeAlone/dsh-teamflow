@@ -1,3 +1,5 @@
+import { workflowRequest } from './workflow-request.ts'
+import { activityStatus } from './activity-status.ts'
 import { resolveActivitySession, type ActivitySessionOwner } from './activity-session.ts'
 import { WorkflowLocale } from './workflow-i18n.tsx'
 /**
@@ -187,18 +189,24 @@ function WorkGlyph({ active }: { readonly active: boolean }) {
 }
 
 /** Collapsed badge: an always-visible corner pill while any team exists. */
-function CollapsedBadge({ count, busy, onClick, t }: {
+function CollapsedBadge({ count, busy, onClick, t, team, archived }: {
   readonly count: number
+  readonly team?: ActivityTeam
+  readonly archived?: boolean
   readonly busy: boolean
   readonly onClick: () => void
   readonly t: AgentTeamsTranslate
 }) {
-  return (
-    <button type="button" className={css.badge} data-agent-teams-collapsed data-busy={busy} onClick={onClick} aria-label={t('activity.badgeAria', { count })}>
-      <span className={css.badgeDot} data-busy={busy} aria-hidden />
-      <span className={css.badgeCount}>{count}</span>
-    </button>
-  )
+  const status=activityStatus(team,archived)
+  const label=t(('activity.state.'+status.state) as Parameters<AgentTeamsTranslate>[0])
+  const detail=t('activity.summary',{done:status.completed,total:status.total,running:status.running,review:status.reviews,attention:status.attention})
+  const title=[team?.name,label,status.total?status.percent+'%':undefined,detail,t('activity.badgeAria',{count})].filter(Boolean).join(' · ')
+  return <button type="button" className={css.badge} data-agent-teams-collapsed data-busy={busy} data-status={status.state} onClick={onClick} aria-label={title} title={title}>
+    <span className={css.statusRing} aria-hidden><svg viewBox="0 0 20 20" width="20" height="20"><circle cx="10" cy="10" r="7.5" className={css.ringTrack}/><circle cx="10" cy="10" r="7.5" className={css.ringValue} pathLength="100" strokeDasharray={status.percent+' 100'}/></svg>{status.state==='completed'?<i>✓</i>:status.state==='paused'?<i>Ⅱ</i>:status.attention>0?<i>·</i>:null}</span>
+    <span className={css.statusLabel}>{label}</span>
+    {status.total>0&&status.state!=='completed'&&<span className={css.statusPercent}>{status.percent}<small>%</small></span>}
+    {status.attention>0&&<span className={css.statusCount} aria-hidden>{status.attention>99?'99+':status.attention}</span>}
+  </button>
 }
 
 function memberStateLabel(
@@ -570,9 +578,8 @@ function LocalizedTeamSection({ team, modelDirectory, onContinuePlanning, onDisc
     if (controlPending.current || taskControlState(team,task,historic).disabled) return
     controlPending.current = true; setControlBusy(task.id); setControlError('')
     try {
-      const response = await fetch('/plugins/dsh-agent-teams/workflow',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({action:'set_task_enabled',sessionId:team.captainSessionId,teamId:team.teamId,taskId:task.id,enabled,updatedAt:task.updatedAt})})
-      const value = await response.json() as {error?:string;activity?:ActivityTeam}
-      if (!response.ok || !value.activity) throw new Error(value.error || t('task.control.failed'))
+      const value = await workflowRequest<{activity?:ActivityTeam}>({action:'set_task_enabled',sessionId:team.captainSessionId,teamId:team.teamId,taskId:task.id,enabled,updatedAt:task.updatedAt})
+      if (!value.activity) throw new Error(t('task.control.failed'))
       publishWorkflowActivity(value.activity)
     } catch (error) { setControlError(error instanceof Error ? error.message : t('task.control.failed')) }
     finally { controlPending.current = false; setControlBusy(undefined) }
@@ -582,9 +589,8 @@ function LocalizedTeamSection({ team, modelDirectory, onContinuePlanning, onDisc
     if (controlPending.current) return
     controlPending.current = true; setControlBusy('flow'); setControlError('')
     try {
-      const response = await fetch('/plugins/dsh-agent-teams/workflow',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({action:team.phase === 'staged' ? 'start' : 'set_flow_enabled',sessionId:team.captainSessionId,teamId:team.teamId,enabled,version:flowControlVersion(team)})})
-      const value = await response.json() as {error?:string;activity?:ActivityTeam}
-      if (!response.ok || !value.activity) throw new Error(value.error || t('task.control.failed'))
+      const value = await workflowRequest<{activity?:ActivityTeam}>({action:team.phase === 'staged' ? 'start' : 'set_flow_enabled',sessionId:team.captainSessionId,teamId:team.teamId,enabled,version:flowControlVersion(team)})
+      if (!value.activity) throw new Error(t('task.control.failed'))
       publishWorkflowActivity(value.activity)
     } catch (error) { setControlError(error instanceof Error ? error.message : t('task.control.failed')) }
     finally { controlPending.current = false; setControlBusy(undefined) }
@@ -1269,7 +1275,7 @@ export function ActivityPanel({ sessionsList, modelDirectories, openMember, t, c
   return (
     <>
       {!expanded && (
-        <CollapsedBadge count={visibleCount} busy={busy} t={t} onClick={() => {
+        <CollapsedBadge count={visibleCount} busy={busy} team={visibleTeams[0]??visibleArchived[0]} archived={!visibleTeams.length&&!!visibleArchived.length} t={t} onClick={() => {
           if (current === undefined) return
           const team = visibleTeams[0] ?? visibleArchived[0]
           if (team) setCanvasEntry({ owner: current, teamId: team.teamId, archived: visibleArchived.includes(team) })

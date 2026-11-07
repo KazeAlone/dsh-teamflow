@@ -64,7 +64,8 @@ export function isStoppedAttempts(value: unknown): boolean {
   return Array.isArray(value) && value.every(item => record(item) && optionalString(item['attemptId']) && optionalString(item['output']) && number(item['at']))
 }
 export function isWorkflowRerunContext(value: unknown): boolean {
-  return record(value) && string(value['instructions']) && !!value['instructions'].trim()
-    && ['completed','failed','cancelled'].includes(value['previousStatus'] as string)
+  return record(value) && string(value['instructions']) && (value['previousStatus']==='pending'||!!value['instructions'].trim())
+    && ['completed','failed','cancelled','pending'].includes(value['previousStatus'] as string)
+    && (value['continuation']===undefined||typeof value['continuation']==='boolean')
     && optionalString(value['previousOutput']) && optionalString(value['previousAttemptId']) && number(value['requestedAt'])
 }

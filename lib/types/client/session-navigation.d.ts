@@ -30,15 +30,6 @@ export interface AgentTeamsLayoutNavigator {
 }
 /** Independent workflow discussions are ordinary sessions, never captain subagents. */
 export declare function openWorkflowConversation(openMember: (parentId: SessionId, childId: SessionId) => void | Promise<void>, sessionId: SessionId): void | Promise<void>;
-/**
- * Open one member's persisted transcript.
- *
- * Harness rc.8 intentionally removed cold subagents from the ordinary session
- * list. They must first be rediscovered in their parent's catalog, then opened
- * with the exact parent/child/mode address. Older runtimes have only `open()`;
- * the fallback preserves ordinary-session navigation. New layouts also select
- * the Conversation panel and cancel catalog refreshes superseded by navigation.
- */
 export declare function openAgentTeamMember(sessions: AgentTeamsSessionNavigator, parentSessionId: SessionId, childSessionId: SessionId, layout?: AgentTeamsLayoutNavigator, workspace?: AgentTeamsWorkspaceNavigator): Promise<'subagent' | 'session' | 'cancelled'>;
 /** Blank sessions suppress the host's normal header actions. */
 export declare function blankTeamflowSession(state: Parameters<typeof currentSessionId>[0] & {

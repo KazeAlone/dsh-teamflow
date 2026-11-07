@@ -1,6 +1,6 @@
 import {readOutcomePreview} from '../lib/artifacts.js';
 import {outcomeFiles} from '../lib/outcomes.js';
-import {resumeRerunPath,resetTaskForRerun} from '../lib/task-rerun.js';
+import {startWorkflowPath,resumeRerunPath,resetTaskForRerun} from '../lib/task-rerun.js';
 import { builtinTemplates, getBuiltinTemplate } from '../lib/builtin-templates.js';
 import { localizeBuiltinTemplate } from '../lib/builtin-template-locales.js';
 import { templateSeed, instantiateTemplate } from '../lib/templates.js';
@@ -41,7 +41,7 @@ const example = { workspace: '', teamId: 'preview', name: '活动面板示例', 
 const archived = {...example,name:'6/7 人工验收归档恢复示例',workflowEnabled:true,tasks:[...Array.from({length:6},(_,i)=>({id:'t'+(i+1),subject:'已完成成果 '+(i+1),status:'completed',state:'completed',assignee:'researcher',dependencies:[],depth:0})),{id:'t7',subject:'人工检查',status:'pending',state:'open',assignee:'',dependencies:['t1','t2','t3','t4','t5','t6'],depth:1,checkpoint:{round:1,history:[]}}]} as any;
 function Preview({language}:{language:string}) {const t = ((key: string, values: Record<string, unknown> = {}) => ((language==='en'?en:zh) as Record<string, string>)[key]?.replace(/\\{(\\w+)\\}/g, (_, name) => String(values[name])) ?? key) as any;const snapshots=React.useSyncExternalStore(subscribeActivitySnapshots,getActivitySnapshotsSnapshot);const restored=snapshots.teams.find(team=>team.teamId==='preview');
   React.useEffect(()=>{if(${Boolean(process.env.TEAMFLOW_PREVIEW_DEPENDENCIES)}) void fetch('/plugins/dsh-agent-teams/workflow',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({action:'state',sessionId:'preview',teamId:'preview'})}).then(res=>res.json()).then(value=>publishWorkflowActivity(value.activity));},[]);
-  if(${Boolean(process.env.TEAMFLOW_PREVIEW_ACTIVITY)}) return <><main data-phase="active" style={{minHeight:500}}><header><h3>当前团队对话</h3><TeamChatEntry sessionId={'preview' as any} t={t} openMember={()=>{}}/></header><p>团队已建立。右上角的小圆点可直接打开流程画布。</p>{restored && <AgentTeamsSummary data={{teamId:restored.teamId,teamName:restored.name,captainSessionId:'preview',members:restored.members}} sessionId="preview" openMember={()=>{}} t={t}/>}</main><div data-shell-overlay style={{position:'fixed',inset:0,pointerEvents:'none'}}><div style={{pointerEvents:'auto'}}><ActivitySurface state={activityState} sessionsList={sessionStore} modelDirectories={modelDirectories} openMember={()=>{}} t={t}/></div></div></>;
+  if(${Boolean(process.env.TEAMFLOW_PREVIEW_ACTIVITY)}) return <><main data-phase="active" style={{minHeight:500}}><header><h3>当前团队对话</h3><TeamChatEntry sessionId={'preview' as any} t={t} openMember={()=>{}}/></header><p>团队已建立。右上角的状态胶囊显示进度，点击打开流程画布。</p>{restored && <AgentTeamsSummary data={{teamId:restored.teamId,teamName:restored.name,captainSessionId:'preview',members:restored.members}} sessionId="preview" openMember={()=>{}} t={t}/>}</main><div data-shell-overlay style={{position:'fixed',inset:0,pointerEvents:'none'}}><div style={{pointerEvents:'auto'}}><ActivitySurface state={activityState} sessionsList={sessionStore} modelDirectories={modelDirectories} openMember={()=>{}} t={t}/></div></div></>;
   if(${Boolean(process.env.TEAMFLOW_PREVIEW_DEPENDENCIES)}) return restored ? <TeamSection team={restored} workspace={!${Boolean(process.env.TEAMFLOW_PREVIEW_COMPACT)}} modelDirectory={modelDirectory} t={t} onNavigate={()=>{}}/> : <p>正在加载依赖图…</p>;
   if(${Boolean(process.env.TEAMFLOW_PREVIEW_ARCHIVED)}) return <><WorkflowWorkbench sessionId="preview" teamId="preview" archived={!restored} embeddedContext modelDirectory={modelDirectory} t={t}/><TeamSection team={restored??archived} workspace historic={!restored} modelDirectory={modelDirectory} onNavigate={()=>{}} t={t}/></>;
   return <><WorkflowWorkbench sessionId="preview" embeddedContext modelDirectory={modelDirectory} t={t} teamId={location.search.includes('blank') ? undefined : 'preview'} waitingCount={location.search.includes('blank') ? 0 : 1} /><TeamSection team={example} workspace modelDirectory={modelDirectory} onNavigate={() => {}} t={t} /></>}
@@ -60,13 +60,14 @@ let team = {
     { id: 't3', subject: '开发与自测', description: '仅在需求通过后执行', assignee: 'developer', dependencies: ['t2'], status: 'pending', attempt: 0, createdAt: 1, updatedAt: 1 },
   ],
 };
+if(process.env.TEAMFLOW_PREVIEW_RECOVERY){Object.assign(team.tasks[0],{status:'in_progress',attempt:3,attemptId:'interrupted',output:'已保存调研进度'});team.tasks[1].workflowPaused=true;}
 const outcomeRoot=resolve('output/outcome-showcase/workspace');
 if(process.env.TEAMFLOW_PREVIEW_OUTCOMES){
   mkdirSync(outcomeRoot,{recursive:true});
   writeFileSync(resolve(outcomeRoot,'report.md'),'# CSV 导出交付\n\n- 中文编码验证完成\n- 特殊字符往返读取通过\n\n<script>window.previewExecuted=true</script>');
   writeFileSync(resolve(outcomeRoot,'orders.csv'),'订单,备注,金额\r\n1001,"含逗号,引号""与换行\n第二行",128\r\n1002,正常订单,256');
   writeFileSync(resolve(outcomeRoot,'preview.png'),Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aWQAAAABJRU5ErkJggg==','base64'));
-  team.name='CSV 导出 · 成果展台';
+  team.name='CSV 导出 · 交付内容';
   Object.assign(team.tasks[0],{subject:'实现与验证 CSV 导出',deliverables:['report.md','orders.csv','preview.png','missing.md'],changedPaths:['report.md'],output:'# 交付说明\n\n已实现 CSV 导出，包含中文、引号和换行处理。\n\n- 调研报告：report.md\n- 导出样例：orders.csv',commandsRun:[{command:'node --test csv.test.mjs',status:'passed',evidence:'6 tests passed'}],stoppedAttempts:[{at:Date.now()-60000,status:'completed',output:'上一轮：编码待修复。'}]});
 }
 if (process.env.TEAMFLOW_PREVIEW_REVIEW) {
@@ -177,6 +178,8 @@ createServer(async (req, res) => {
         if (!body.enabled) task.status='pending';
       }
     }
+    if(body.action==='start_path'){if(body.base!==workflowFingerprint(team))throw Error('团队已变化，请刷新节点后重新确认');startWorkflowPath(team,body.taskId);}
+    if(body.action==='continue_task'){const task=team.tasks.find(t=>t.id===body.taskId);if(body.base!==workflowFingerprint(team))throw Error('团队已变化');task.status='claimed';task.attempt++;task.attemptId='continued';task.updatedAt=Date.now();}
     if(body.action==='resume_rerun_path'){if(body.base!==workflowFingerprint(team))throw Error('团队已变化，请刷新节点后重新确认');resumeRerunPath(team,body.taskId);}
     if (body.action === 'resume_task') {
       const task=team.tasks.find(task=>task.id===body.taskId)
@@ -192,7 +195,7 @@ createServer(async (req, res) => {
       const stopping=body.action==='stop_task' || body.enabled===false;
       if(stopping && !task.checkpoint) {
         if(task.attemptId || task.output) {task.stoppedAttempts??=[];task.stoppedAttempts.push({attemptId:task.attemptId,output:task.output,at:Date.now()})}
-        task.status='pending';task.attempt=0;task.attemptId=undefined;task.reassigning=false;
+        task.status='pending';task.attemptId=undefined;task.reassigning=false;
       }
       task.workflowPaused=stopping;task.workflowAwaitingStart=false;task.updatedAt=Date.now();
     }
@@ -220,6 +223,6 @@ createServer(async (req, res) => {
       const d=state.discussions['discussion:check:'+task.id]??={key:'check:'+task.id,messages:[],calls:[]};const m=workflowMaterials(team,task.id,process.cwd());d.materials=m.text;d.evidence=m.evidence;d.materialsRound=task.checkpoint.round;
     }
     if (body.action === 'review') { const material=workflowMaterials(team, body.taskId, process.cwd()); decideCheckpoint(team, body.taskId, body.decision, body.evidence, material.evidence, body.note || '', material.text); }
-    send(res, 200, { team, base: workflowFingerprint(team), ...(['set_flow_enabled','restore_archive','review','set_task_enabled','state','create','template_apply','open_discussion','edit','apply','resume_rerun_path','resume_task','stop_task','start'].includes(body.action)?{activity:await assembleTeamSnapshot({agents:{get(){}}},resolve('node_modules/workflow-preview-state'),'测试',team)}:{}), ready: body.action === 'archive_state' ? [] : team.tasks.filter(t => checkpointReady(team, t) && !t.checkpoint.decision).map(t => t.id), busy: [], ...(process.env.TEAMFLOW_PREVIEW_ACTIVITY_DISCUSSION ? {currentDiscussion:'adapt'} : process.env.TEAMFLOW_PREVIEW_DISCUSSION ? { currentDiscussion: 'member:researcher' } : {}), ...(body.action === 'open_discussion' ? { openedSessionId: discussion.native.sessionId } : {}) });
+    send(res, 200, { team, execution:Object.fromEntries(team.tasks.map(t=>[t.id,t.attemptId==='interrupted'?'interrupted':t.status==='claimed'?'active':'unknown'])), base: workflowFingerprint(team), ...(['set_flow_enabled','restore_archive','review','set_task_enabled','state','create','template_apply','open_discussion','edit','apply','resume_rerun_path','resume_task','stop_task','start'].includes(body.action)?{activity:await assembleTeamSnapshot({agents:{get(){}}},resolve('node_modules/workflow-preview-state'),'测试',team)}:{}), ready: body.action === 'archive_state' ? [] : team.tasks.filter(t => checkpointReady(team, t) && !t.checkpoint.decision).map(t => t.id), busy: [], ...(process.env.TEAMFLOW_PREVIEW_ACTIVITY_DISCUSSION ? {currentDiscussion:'adapt'} : process.env.TEAMFLOW_PREVIEW_DISCUSSION ? { currentDiscussion: 'member:researcher' } : {}), ...(body.action === 'open_discussion' ? { openedSessionId: discussion.native.sessionId } : {}) });
   } catch (error) { send(res, 409, { error: error.message }); }
 }).listen(port, '127.0.0.1', () => console.log(`Workflow UI fixture: http://127.0.0.1:${port}`));

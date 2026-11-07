@@ -30,7 +30,7 @@ try {
  await review.getByRole('button',{name:'退回修改',exact:true}).click()
  await review.getByRole('textbox',{name:'返工要求',exact:true}).fill('补充中文编码修复和测试')
  await review.getByRole('button',{name:'保存要求并重跑任务',exact:true}).click()
- await review.getByRole('button',{name:'重跑到此节点',exact:true}).click()
+ await review.getByRole('button',{name:'运行到此节点',exact:true}).click()
  // Stay in the panel: new-round evidence must load without a manual refresh.
  await review.getByRole('button',{name:'通过验收',exact:true}).waitFor()
  await review.getByText('模拟重跑结果：已按最新要求重新执行。',{exact:true}).waitFor()

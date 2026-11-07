@@ -125,7 +125,7 @@ function RejectedReview({team,task,busy,blocked,onRerun,onReopen,onBack,onDiscus
       <label>{l('需要返工的任务')}<select aria-label={l('需要返工的任务')} value={source?.id??''} onChange={e=>setSelected(e.target.value)}>{!source&&<option value="">{l('请选择任务')}</option>}{candidates.map(t=><option key={t.id} value={t.id}>{t.subject}</option>)}</select></label>
       <label>{l('返工要求')}<textarea aria-label={l('返工要求')} required maxLength={16000} value={instructions} onChange={e=>setInstructions(e.target.value)}/></label>
       <p className={css.hint}>{l('受影响的后续节点：')}{impact?.descendants.map(t=>t.subject).join('、')||l('无')}</p>
-      <p className={css.hint}>{l('保存后先重跑所选任务，再点击「重跑到此节点」确认后续路径。新结果仍需人工验收，其他受影响分支保持暂停。')}</p>
+      <p className={css.hint}>{l('保存后先重跑所选任务，再点击「运行到此节点」确认后续路径。新结果仍需人工验收，其他受影响分支保持暂停。')}</p>
       {issue&&<p role="alert">{issue}</p>}<button type="submit" className={css.primary} disabled={busy||!!issue||!source||!instructions.trim()}>{l('保存要求并重跑任务')}</button>
     </form>:<p>{l('没有可直接重跑的上游任务。请返回节点调整任务与依赖，或讨论返工方案。')}</p>}
     <div className={css.actions}><button type="button" disabled={busy} onClick={onBack}>{l('返回节点调整流程')}</button><button type="button" disabled={busy} onClick={onDiscuss}>{l('讨论返工方案')}</button></div>

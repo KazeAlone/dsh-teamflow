@@ -1,4 +1,6 @@
 import { galleryAccessKeys } from "../gallery-access.ts"
+import { createWorkflowCache } from './workflow-cache.ts'
+import { workflowRequest } from './workflow-request.ts'
 import { briefDisplay } from './workflow-text.ts'
 import { workflowMessage } from './workflow-text.ts'
 import { localizeBuiltinTemplate, builtinText } from '../builtin-template-locales.ts'
@@ -13,11 +15,10 @@ import { BrandIcon } from './BrandIcon.tsx'
 import { EmbeddedDiscussion } from './EmbeddedDiscussion.tsx'
 import css from './TemplateGallery.module.css'
 
-async function api(sessionId:string | undefined,action:string,fields:Record<string,unknown>={}){
-  const response=await fetch('/plugins/dsh-agent-teams/workflow',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({sessionId,action,...fields})})
-  const result=await response.json()
-  if(!response.ok)throw new Error(result.error??`HTTP ${response.status}`)
-  return result
+type Catalog = {templates:TemplateVersion[];warnings:string[];context?:string}
+const catalogCache=createWorkflowCache<Catalog>(4,2*1024*1024)
+async function api(sessionId:string | undefined,action:string,fields:Record<string,unknown>={},signal?:AbortSignal){
+  return workflowRequest<any>({sessionId,action,...fields},fetch,undefined,signal)
 }
 function MiniFlow({template,large=false}:{template:TemplateDefinition;large?:boolean}){
   const l = useWorkflowText()
@@ -32,10 +33,10 @@ function MiniFlow({template,large=false}:{template:TemplateDefinition;large?:boo
 export function TemplateGallery({sessionId,team,archived=false,mode='browse',onApply,onBack}:{sessionId?:string;team?:TeamState;archived?:boolean;mode?:'browse'|'save';onApply:(template:TemplateVersion,name:string,goal:string)=>Promise<void>;onBack?:()=>void}){
   const l = useWorkflowText()
 
-  const [templates,setTemplates]=useState<TemplateVersion[]>([]),[warnings,setWarnings]=useState<string[]>([])
+  const [templates,setTemplates]=useState<TemplateVersion[]>(()=>catalogCache.get(sessionId??'')?.templates??[]),[warnings,setWarnings]=useState<string[]>([])
   const [search,setSearch]=useState(''),[tag,setTag]=useState(''),[selection,setSelected]=useState<TemplateVersion>()
   const [draft,setDraft]=useState<TemplateDefinition>(),[previous,setPrevious]=useState<{id:string;version:number}>()
-  const [busy,setBusy]=useState(false),[error,setError]=useState(''),[notice,setNotice]=useState(''),[goal,setGoal]=useState(''),[name,setName]=useState<string>()
+  const [busy,setBusy]=useState(true),[error,setError]=useState(''),[notice,setNotice]=useState(''),[goal,setGoal]=useState(''),[name,setName]=useState<string>()
   const [extracting,setExtracting]=useState(false),[aiDraft,setAiDraft]=useState<TemplateDefinition>(),[deleteId,setDeleteId]=useState('')
   const selected=selection?localizeBuiltinTemplate(selection,l.language):undefined
   const catalog=templates.map(item=>localizeBuiltinTemplate(item,l.language))
@@ -50,14 +51,26 @@ export function TemplateGallery({sessionId,team,archived=false,mode='browse',onA
   }, [selection, draft])
   const alive=useRef(true)
   useEffect(()=>{alive.current=true;return()=>{alive.current=false}},[])
-  async function refresh(){const result=await api(sessionId,'template_list');if(alive.current){setTemplates(result.templates);setWarnings(result.warnings);setGoal(current=>current||result.context||'')}}
+  async function refresh(signal?:AbortSignal){const result=await api(sessionId,'template_list',{},signal);if(alive.current&&!signal?.aborted){catalogCache.set(sessionId??'',result);setTemplates(result.templates);setWarnings(result.warnings);setGoal(current=>current||result.context||'')}}
   async function run(action:()=>Promise<void>){setBusy(true);setError('');setNotice('');try{await action()}catch(e){if(alive.current)setError(e instanceof Error?e.message:String(e))}finally{if(alive.current)setBusy(false)}}
-  useEffect(()=>{void run(async()=>{await refresh();if(mode==='save'&&team){const result=await api(sessionId,'template_seed',{teamId:team.id});if(alive.current)setDraft(result.definition)}})},[sessionId,mode,team?.id])
+  useEffect(()=>{
+    const controller=new AbortController()
+    setBusy(true);setError('')
+    void (async()=>{
+      try {
+        await refresh(controller.signal)
+        if(mode==='save'&&team&&!controller.signal.aborted){const result=await api(sessionId,'template_seed',{teamId:team.id},controller.signal);if(!controller.signal.aborted)setDraft(result.definition)}
+      } catch(e){if(!controller.signal.aborted)setError(e instanceof Error?e.message:String(e))}
+      finally {if(!controller.signal.aborted)setBusy(false)}
+    })()
+    return()=>controller.abort()
+  },[sessionId,mode,team?.id])
   useEffect(()=>{
     if(!extracting||!team)return
-    let live=true
-    const poll=()=>{void api(sessionId,'state',{teamId:team.id}).then(result=>{const candidate=result.team?.workflow?.discussions?.['discussion:template']?.templateDraft;if(live&&candidate){if(candidate.base===result.base)setAiDraft(candidate.definition);else setError(l("源流程已变化，请重新讨论后生成模板草稿。"))}}).catch(e=>{if(live)setError(e instanceof Error ? e.message : String(e))})}
-    poll();const timer=setInterval(poll,2500);return()=>{live=false;clearInterval(timer)}
+    let live=true, inFlight=false
+    const controller=new AbortController()
+    const poll=()=>{if(inFlight||document.hidden)return;inFlight=true;void api(sessionId,'state',{teamId:team.id},controller.signal).then(result=>{const candidate=result.team?.workflow?.discussions?.['discussion:template']?.templateDraft;if(live&&candidate){if(candidate.base===result.base)setAiDraft(candidate.definition);else setError(l("源流程已变化，请重新讨论后生成模板草稿。"))}}).catch(e=>{if(live)setError(e instanceof Error ? e.message : String(e))}).finally(()=>{inFlight=false})}
+    poll();const timer=setInterval(poll,2500);return()=>{live=false;controller.abort();clearInterval(timer)}
   },[extracting,team?.id,sessionId])
   function choose(item: TemplateVersion, apply = false) {
     cardTrigger.current = (apply ? 'use:' : 'view:') + item.id

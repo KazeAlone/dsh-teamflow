@@ -19,15 +19,17 @@ Built on [AgentTeams](https://github.com/NanmiCoder/dsh-agent-teams), TeamFlow n
 
 ## Start here
 
-This README describes development version **`0.2.6-dev.15`**. The package is `@yogurtss/dsh-teamflow`; install it from this repository or a local build.
+**Continue and rerun**: Start all resumes unfinished, paused, or interrupted work and preserves completed results. Run through a node resumes its required ancestors and pauses later descendants; human checkpoints still require approval. Continuing needs no new input. An explicit rerun requires a reason in the card editor. Reconnection reads current state without replaying mutations. Blockers and recovery explains configuration, dependencies, review, and execution issues with next actions.
+
+This README describes development version **`0.2.7-dev.3`**. The stable installation remains [0.2.6 on main](./release-notes/v0.2.6.md). The package is `@yogurtss/dsh-teamflow`; install it from this repository or a local build.
 
 | Channel | Git source | Purpose |
 | --- | --- | --- |
-| Stable | `github:yogurtss/dsh-teamflow#main` | Approved Gallery release; the default installation below |
-| Development | `github:yogurtss/dsh-teamflow#dev` | The workflow and UI described here, including the top-level Workflow entry |
+| Stable | `github:yogurtss/dsh-teamflow#main` | Approved TeamFlow release described here; the default installation below |
+| Development | `github:yogurtss/dsh-teamflow#dev` | Upcoming changes under development |
 | Classic | `github:yogurtss/dsh-teamflow#classic` | Historical version without Gallery |
 
-The development build accepts DSH `0.2.1-rc.5`; the repository's development dependencies remain on `0.2.1-rc.2`. See the [compatibility record](./docs/harness-0.2.1-rc.5/README.md) and [compatibility matrix](./compatibility.json) for exact targets and validation scope. Stable and development releases have separate schedules.
+This release accepts DSH `0.2.1-rc.5`; the repository's development dependencies remain on `0.2.1-rc.2`. See the [compatibility record](./docs/harness-0.2.1-rc.5/README.md) and [compatibility matrix](./compatibility.json) for exact targets and validation scope. Stable and development releases have separate schedules.
 
 ## Your first workflow
 
@@ -55,7 +57,7 @@ Edit fields directly or discuss a task, member, or the whole workflow with AI. A
 
 ### 3. Follow execution and review results
 
-Click the conversation's activity dot to return to the canvas. Select a node to read its requirements, status, results, and available verification records. **Needs attention** takes you to pending proposals, configuration, reviews, or rerun decisions.
+Click the conversation's compact status capsule to return to the canvas. Select a node to read its requirements, status, results, and available verification records. **Needs attention** takes you to pending proposals, configuration, reviews, or rerun decisions.
 
 An edge `A → B` means B waits for A. Independent branches can run in parallel when their assigned members are available. Paused or unconfigured tasks do not start; enabling a task does not bypass its prerequisites.
 
@@ -63,11 +65,13 @@ At a human checkpoint, open the evidence and use **Approve** or **Return**. The 
 
 The **Review workbench** opens from the checkpoint's details, Needs attention, or the chat's review reminder. Inspect requirements, submitted checks, command records, and file digests beside the canvas; expand the panel for more space. Compare saved rounds or discuss the checkpoint with AI. Approval requires confirmation; returning work requires a reason. New decisions retain their evidence snapshot; older records without snapshots are labeled explicitly. Evidence links use exact criterion names, and agent reports are never treated as human approval.
 
-Open **Outcomes** at the top of Workflow to browse submissions, reported checks, and files grouped by source task. Markdown, text/code, CSV, and raster images preview directly from the current workspace; no model is called to collect, organize, or display them. Files come only from declared deliverables and reported changes. Current files are not historical snapshots, and agent reports are not human approval. Use **View source task** or a downstream checkpoint to continue reviewing.
+Open **Deliverables** at the top of Workflow to browse submissions, reported checks, and files grouped by source task. Markdown, text/code, CSV, and raster images preview directly from the current workspace; no model is called to collect, organize, or display them. Files come only from declared deliverables and reported changes. Current files are not historical snapshots, and agent reports are not human approval. Use **View source task** or a downstream checkpoint to continue reviewing.
 
-After a return, **Review current results again** starts a fresh review round while retaining the returned decision. To repair the work, select an upstream task under **Arrange rework**, confirm its instructions, and rerun it. Then use **Rerun to this node** to resume the path to the checkpoint; the current round’s evidence loads when ready, so you can review the new result. Other affected branches stay paused.
+After a return, **Review current results again** starts a fresh review round while retaining the returned decision. To repair the work, select an upstream task under **Arrange rework**, confirm its instructions, and rerun it. Then use **Run through this node** to resume the path to the checkpoint; the current round’s evidence loads when ready, so you can review the new result. Other affected branches stay paused.
 
 **Start all** also confirms pending reruns across the workflow. Enabled nodes run in dependency order, wait at human checkpoints, and continue automatically after approval. **Pause all** stops current work and prevents queued downstream work from starting. Unconfigured nodes, rejected reviews, and failed tasks still need attention.
+
+The compact status capsule shows completed-node progress and an attention count. Pure configuration issues show “Setup needed”; mixed issues show “Attention”. Hover for a breakdown, or click to open Workflow. Running cards breathe gently; reduced-motion settings disable animation.
 
 ### 4. Revise and reuse
 
