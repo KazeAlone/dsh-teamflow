@@ -63,13 +63,20 @@ export function installWorkflowWorkbench(ctx: Context, config: ToolsConfig, runt
   const stopping = new Set<string>()
   const controllingFlows = new Set<string>()
   ctx.effect(() => server.register({ kind: 'exact', path: '/plugins/dsh-agent-teams/workflow', handler: async (req, res) => {
+    let conditionalState=false,knownRevision:unknown
     const reply = (status: number, value: unknown): void => {
+      if(status===200&&conditionalState&&value&&typeof value==='object'&&'team' in value&&value.team){
+        const revision=createHash('sha256').update(JSON.stringify(value)).digest('hex')
+        value=knownRevision===revision?{notModified:true,revision}:{...value,revision}
+      }
       res.writeHead(status, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' }); res.end(JSON.stringify(value))
     }
     if (req.method !== 'POST') { reply(405, { error: 'POST required' }); return }
     try {
       const body = await readJsonRequest(req)
       const action = string(body['action'], 'action')
+      conditionalState=(action==='state'||action==='archive_state')&&body['conditionalState']===true
+      knownRevision=body['knownRevision']
       const libraryRoot = templateLibraryRoot(config.templateDirectory)
       if (action === 'launcher_context') {
         const picker=ctx.get?.('directoryPicker') as {capability?:()=>{kind:string}} | undefined

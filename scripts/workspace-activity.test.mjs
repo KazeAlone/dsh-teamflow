@@ -1,7 +1,24 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import {createWorkspaceState,createTeamDiscovery} from '../lib/client/workspace-state.js'
-import {startActivityPolling,publishWorkflowActivity,getActivitySnapshotsSnapshot,updateActivitySnapshots} from '../lib/client/activity-monitor.js'
+import {startActivityPolling,publishWorkflowActivity,getActivitySnapshotsSnapshot,updateActivitySnapshots,subscribeActivitySnapshots} from '../lib/client/activity-monitor.js'
+
+test('unchanged network snapshots do not notify or rerender all mounted cards',()=>{
+ const teams=[{teamId:'stable',captainSessionId:'owner',tasks:[{id:'work',status:'running'}]}]
+ updateActivitySnapshots({teams,archivedTeams:[]});const before=getActivitySnapshotsSnapshot();let notifications=0
+ const off=subscribeActivitySnapshots(()=>notifications++)
+ for(let i=0;i<100;i++)updateActivitySnapshots({teams:structuredClone(teams)})
+ assert.equal(notifications,0);assert.equal(getActivitySnapshotsSnapshot(),before)
+ updateActivitySnapshots({teams:[{...teams[0],tasks:[{id:'work',status:'completed'}]}]})
+ assert.equal(notifications,1);off()
+})
+
+test('live and archive polls request only the current owner scope',async()=>{
+ const urls=[]
+ const poll=startActivityPolling([],{discoverySessionId:'captain & one',fetchState:async url=>{urls.push(new URL(url,'http://local'));return{ok:true,json:async()=>({teams:[]})}},schedule:()=>1,cancel(){}})
+ await poll.firstTick;poll.stop()
+ assert.equal(urls.length,2);assert.ok(urls.every(url=>url.searchParams.get('sessionId')==='captain & one'));assert.equal(urls[1].searchParams.get('archived'),'1')
+})
 
 test('restored, closed, updated and newly created teams have distinct discovery semantics',()=>{
  const discover=createTeamDiscovery()

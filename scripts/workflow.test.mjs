@@ -47,6 +47,18 @@ async function lifecycleFixture(t, source, options = {}) {
   return {workspace:root,read,call,dispatched,save:state=>writeTeam(stateRoot,state),kick:()=>scheduler.kickTeam(root,source.id,captain)}
 }
 
+test('conditional state omits unchanged large payloads but updates for live execution and edits',async t=>{
+ const liveAgents=new Map(),source=team();source.members[0].id='worker-session';source.tasks[0].status='claimed'
+ const f=await lifecycleFixture(t,source,{liveAgents})
+ const initial=await f.call('state',{conditionalState:true});assert.equal(initial.code,200);assert.ok(initial.revision)
+ const same=await f.call('state',{conditionalState:true,knownRevision:initial.revision});assert.equal(same.notModified,true);assert.equal(same.team,undefined)
+ liveAgents.set('worker-session',{status:'running'})
+ const running=await f.call('state',{conditionalState:true,knownRevision:initial.revision});assert.notEqual(running.revision,initial.revision);assert.equal(running.execution.t1,'active')
+ const saved=await f.read();saved.tasks[0].subject='Updated';await f.save(saved)
+ const changed=await f.call('state',{conditionalState:true,knownRevision:running.revision});assert.equal(changed.team.tasks[0].subject,'Updated')
+ assert.ok((await f.call('state')).team,'old clients still receive complete state')
+})
+
 test('manual and approved AI additions share the first-start boundary for work and reviews', async t => {
   for (const action of ['edit','apply']) {
     const source=team();source.tasks[0].status='completed'

@@ -3,6 +3,15 @@ import test from 'node:test'
 import { currentSessionId, openAgentTeamMember } from '../lib/client/session-navigation.js'
 import { toolResultFailed, teamCardsForTurn } from '../lib/client/agent-teams-card-definition.js'
 
+test('known member navigation does not wait for another remote catalog request',async()=>{
+ const address={parentSessionId:'parent',childSessionId:'child',mode:'continuable'},opened=[]
+ await openAgentTeamMember({open(){},subagentAddress:()=>address,refreshSubagents:()=>{throw Error('redundant remote round trip')},openSubagent:value=>opened.push(value)},'parent','child')
+ assert.deepEqual(opened,[address])
+ let refreshed=false
+ await openAgentTeamMember({open(){},subagentAddress:()=>({...address,parentSessionId:'other'}),refreshSubagents:async()=>{refreshed=true},openSubagent(){}},'parent','child')
+ assert.equal(refreshed,true,'an address from another parent must not be reused')
+})
+
 test('panel follows mainView ownership including retained subagents outside the list ids', () => {
   assert.equal(currentSessionId({ current: 'old', byId: {} }), 'old')
   assert.equal(currentSessionId({ current: undefined, byId: {} }), undefined)

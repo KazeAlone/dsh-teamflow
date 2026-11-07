@@ -1,5 +1,6 @@
 /** Source-message catalog for workflow UI. Never apply to user-authored content. */
 export const workflowEnglish: Record<string, string> = {
+  "已显示上次状态，正在同步最新进度…": "Showing the previous view while syncing the latest progress…",
   "返回修改需求": "Back to requirements",
   "流程正在创建，请稍候": "The workflow is being created. Please wait.",
   "新对话已有其他流程，请返回模板库后重试": "The new conversation already has another workflow. Return to the gallery and try again.",

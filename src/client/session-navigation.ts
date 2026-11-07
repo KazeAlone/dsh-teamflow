@@ -77,6 +77,15 @@ export async function openAgentTeamMember(
     return 'session'
   }
 
+  // A retained address has already been resolved by the host. Refreshing the
+  // parent's entire catalog on every click adds a serial remote round trip.
+  const known = sessions.subagentAddress?.(childSessionId)
+  if (known?.parentSessionId === parentSessionId && known.childSessionId === childSessionId) {
+    if (navigation?.aborted) return 'cancelled'
+    sessions.openSubagent(known)
+    layout?.selectPanel?.(null)
+    return 'subagent'
+  }
   await sessions.refreshSubagents(parentSessionId)
   if (navigation?.aborted) return 'cancelled'
   const retained = sessions.subagentAddress?.(childSessionId)

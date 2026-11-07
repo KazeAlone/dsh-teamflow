@@ -1,4 +1,5 @@
 import { workflowRequest } from './workflow-request.ts'
+import { createWorkflowCache, workflowCacheKey } from './workflow-cache.ts'
 import { workflowMessage } from './workflow-text.ts'
 import { useWorkflowText, WorkflowLocale } from './workflow-i18n.tsx'
 /** Editable task canvas and isolated configuration / human-review discussions. */
@@ -32,9 +33,15 @@ import { TemplateGallery } from './TemplateGallery.tsx'
 import { OutcomeShowcase } from './OutcomeShowcase.tsx'
 import { ReviewWorkbench } from './ReviewWorkbench.tsx'
 
-interface Response { execution?:Record<string,ExecutionState>; team: TeamState; base: string; ready: string[]; busy: string[]; openedSessionId?: string; currentDiscussion?: string; activity?:ActivityTeam }
+interface Response { revision?:string; execution?:Record<string,ExecutionState>; team: TeamState; base: string; ready: string[]; busy: string[]; openedSessionId?: string; currentDiscussion?: string; activity?:ActivityTeam }
+const viewCache=createWorkflowCache<Response>()
 async function request(payload: Record<string, unknown>): Promise<Response | undefined> {
-  const result = await workflowRequest<Response>(payload)
+  const reading=payload['action']==='state'||payload['action']==='archive_state'
+  const key=workflowCacheKey(String(payload['sessionId']),String(payload['teamId']??''),payload['action']==='archive_state')
+  const previous=reading?viewCache.get(key):undefined
+  const result = await workflowRequest<Response & {notModified?:boolean}>({...payload,...reading?{conditionalState:true,knownRevision:previous?.revision}:{}})
+  if(result.notModified&&previous)return previous
+  if(reading&&!result.team)viewCache.remove(key)
   if (!result.team) return
   return result
 }
@@ -86,7 +93,9 @@ function Workbench({ sessionId, teamId, archived = false, waitingCount = 0, open
   const entryOpened = useRef(false)
   const [editing, setEditing] = useState(false)
   const [archiveView, setArchiveView] = useState(archived)
-  const [data, setData] = useState<Response>()
+  const [cached]=useState(()=>teamId?viewCache.get(workflowCacheKey(sessionId,teamId,archived)):undefined)
+  const [data, setData] = useState<Response | undefined>(cached)
+  const [revalidating,setRevalidating]=useState(!!cached)
   const [activeId, setActiveId] = useState(teamId)
   const [view, setView] = useState(initialWorkbenchView)
   const viewRef = useRef(view)
@@ -95,7 +104,8 @@ function Workbench({ sessionId, teamId, archived = false, waitingCount = 0, open
   const [reviewDrafts, setReviewDrafts] = useState<Record<string, ProposalReviewDraft>>({})
   const [proposalFocus, setProposalFocus] = useState(0)
   const [attentionFocus, setAttentionFocus] = useState<{selector:string; revision:number}>()
-  const [working, setWorking] = useState(false)
+  const [mutating, setWorking] = useState(false)
+  const working=mutating||revalidating
   const [saveState, setSaveState] = useState<'saved' | 'saving' | 'error'>('saved')
   const [storageError, setStorageError] = useState('')
   const loadedDraftScope = useRef<string>()
@@ -246,19 +256,20 @@ function Workbench({ sessionId, teamId, archived = false, waitingCount = 0, open
     const token = generation.current
     try {
       const result = await request({ sessionId, teamId: activeId, action: archiveView ? 'archive_state' : 'state' })
-      if (!result) return
+      if (!result) {if(mounted.current&&token===generation.current){setData(undefined);setRevalidating(false)};return}
       if (mounted.current && token === generation.current) {
         setConnectionError('')
         setError(previous=>previous.startsWith('连接中断')||previous===l('请先重新连接并核对最新状态，再操作流程。')?'':previous)
         if(!activeId)setGalleryMode(undefined)
-        setData(result); setActiveId(result.team.id)
+        viewCache.set(workflowCacheKey(sessionId,result.team.id,archiveView),result)
+        setData(result); setActiveId(result.team.id);setRevalidating(false)
         if (!initializedDiscussion.current && result.currentDiscussion) { initializedDiscussion.current = true; if (!initiallyOpen && viewRef.current.revision === 0) selectDiscussion(result.currentDiscussion) }
       }
     } catch (err) { if (mounted.current && token === generation.current && activeId) setConnectionError(err instanceof Error ? err.message : String(err)) }
     finally {refreshInFlight.current=false}
   }
   useEffect(() => {
-    if (working || (!activeId && data)) return
+    if (mutating || (!activeId && data)) return
     void refresh()
     // A restored native conversation can mount before the host attaches its
     // Agent. Keep retrying discovery so that its persisted team appears without
@@ -267,8 +278,9 @@ function Workbench({ sessionId, teamId, archived = false, waitingCount = 0, open
     window.addEventListener('online',reconnect)
     const timer = setInterval(reconnect, 2500)
     return () => {clearInterval(timer);window.removeEventListener('online',reconnect)}
-  }, [activeId, working, archiveView])
+  }, [activeId, mutating, archiveView])
   async function perform(action: string, fields: Record<string, unknown> = {}): Promise<Response | undefined> {
+    if(revalidating)return
     if(archiveView && action !== 'restore_archive') {setError(l("请先恢复归档，再修改或重新执行。"));return}
     if(mutationInFlight.current)return
     if(connectionError){setError(l('请先重新连接并核对最新状态，再操作流程。'));return}
@@ -283,7 +295,7 @@ function Workbench({ sessionId, teamId, archived = false, waitingCount = 0, open
       if (saving) setSaveState('saved')
       if(action==='restore_archive') {setArchiveView(false);setEditing(false);setFeedback(l("已恢复为待确认流程。已完成成果保留；确认成员配置并启动后，可修改和重跑。"))}
       if(result.activity) publishWorkflowActivity(result.activity)
-      if (mounted.current && token === generation.current) { setData(result); setActiveId(result.team.id) }
+      if (mounted.current && token === generation.current) {viewCache.set(workflowCacheKey(sessionId,result.team.id,action==='restore_archive'?false:archiveView),result);setData(result); setActiveId(result.team.id) }
       return result
     } catch (err) { if (mounted.current) { setError(err instanceof Error ? err.message : String(err));if(err instanceof Error&&err.message.startsWith('连接中断'))setConnectionError(err.message); if (saving) setSaveState('error') }; return undefined }
     finally { mutationInFlight.current=false;if (mounted.current) { setWorking(false) } }
@@ -633,6 +645,7 @@ function Workbench({ sessionId, teamId, archived = false, waitingCount = 0, open
         {team.workflow?.templateSource&&team.phase==='staged'&&<button disabled={working} onClick={()=>void startEmbedded('adapt')}><BrandIcon/>{l("统一适配本次任务")}</button>}<strong>{l("创建")}</strong><button disabled={working || archiveView} onClick={() => void createNode('task')}><WorkflowIcon name="task" />{l("任务节点")}</button><button disabled={working || archiveView} onClick={() => void createNode('check')}><WorkflowIcon name="review" />{l("人工节点")}</button><button disabled={working || archiveView} onClick={() => edit('member')}><WorkflowIcon name="agent" />Agent</button>
         <span className={css.commandSpacer} /><button aria-pressed={!inspectorHidden} onClick={() => { setPane(inspectorHidden ? 'discussion' : 'flow'); setInspectorHidden(!inspectorHidden) }}>{inspectorHidden ? l("显示右侧面板") : l("收起右侧面板")}</button>
       </nav>}
+      {revalidating&&<p role="status" className={css.hint}>{l('已显示上次状态，正在同步最新进度…')}</p>}
       {team && (unsaved.length > 0 || saveState !== 'saved' || storageError) && <section className={css.saveBar} aria-label={l("保存状态")}>
         <span role="status">{saveState === 'saving' ? l("正在保存画布…") : saveState === 'error' ? l("上次保存失败，请重试") : l("节点与连线自动保存")} · {unsaved.length ? l("{0} 个对象有未保存属性", unsaved.length) : l("属性已保存")}</span>
         {!!unsaved.length && <><button disabled={working || archiveView} onClick={() => void saveAllProperties()}>{l("保存全部属性")}</button><details><summary>{l("查看未保存对象")}</summary>{unsaved.map(item => <button key={item.key} onClick={() => edit(item.target.type,item.target.id)}>{item.label} {l(" · 未保存")}</button>)}</details></>}
