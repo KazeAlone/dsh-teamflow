@@ -1,3 +1,4 @@
+import { workflowRequest } from './workflow-request.ts'
 import { workflowMessage } from './workflow-text.ts'
 import { useWorkflowText, WorkflowLocale } from './workflow-i18n.tsx'
 /** Editable task canvas and isolated configuration / human-review discussions. */
@@ -16,12 +17,12 @@ import { EmbeddedDiscussion } from './EmbeddedDiscussion.tsx'
 import { ProposalReview, type ProposalReviewDraft } from './ProposalReview.tsx'
 import { TaskStateBadge, taskStateNodeClass } from './TaskStateBadge.tsx'
 import { TaskRerunPicker } from './TaskRerunPicker.tsx'
-import { rerunPath, resumeRerunPath, rerunImpact, rerunnableTasks } from '../task-rerun.ts'
+import { canRestartTask, rerunPath, resumeRerunPath, rerunImpact, rerunnableTasks } from '../task-rerun.ts'
 import { draftSource, editorKey, editorTarget, finishWorkbenchSave, initialEditorDraft, initialWorkbenchView, selectWorkbench, targetDiscussion, type EditorTarget, type WorkbenchTarget, type WorkbenchView } from './workbench-selection.ts'
 import { publishWorkflowActivity, type ActivityTeam } from './activity-monitor.ts'
 import { arrangeTasks, clampZoom, fitGraph } from './workflow-layout.ts'
 import { decodeDrafts, draftStorageKey, pendingDrafts, propertyOperation } from './workbench-drafts.ts'
-import { taskReadiness } from './task-readiness.ts'
+import { taskReadiness, type ExecutionState } from './task-readiness.ts'
 import { flowControlState, flowControlVersion, taskControlState } from './task-control.ts'
 import { zh } from './locales.ts'
 import { awaitsFirstStart } from '../task-start-state.ts'
@@ -31,11 +32,9 @@ import { TemplateGallery } from './TemplateGallery.tsx'
 import { OutcomeShowcase } from './OutcomeShowcase.tsx'
 import { ReviewWorkbench } from './ReviewWorkbench.tsx'
 
-interface Response { team: TeamState; base: string; ready: string[]; busy: string[]; openedSessionId?: string; currentDiscussion?: string; activity?:ActivityTeam }
+interface Response { execution?:Record<string,ExecutionState>; team: TeamState; base: string; ready: string[]; busy: string[]; openedSessionId?: string; currentDiscussion?: string; activity?:ActivityTeam }
 async function request(payload: Record<string, unknown>): Promise<Response | undefined> {
-  const response = await fetch('/plugins/dsh-agent-teams/workflow', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(payload) })
-  const result = await response.json() as Response & { error?: string }
-  if (!response.ok) throw new Error(result.error ?? `HTTP ${response.status}`)
+  const result = await workflowRequest<Response>(payload)
   if (!result.team) return
   return result
 }
@@ -80,6 +79,8 @@ function Workbench({ sessionId, teamId, archived = false, waitingCount = 0, open
   const l = useWorkflowText(t)
 
   const [opened, setOpened] = useState(initiallyOpen || !!entryTarget)
+  const [connectionError,setConnectionError]=useState('')
+  const refreshInFlight=useRef(false), mutationInFlight=useRef(false)
   const [showOutcomes, setShowOutcomes] = useState(false)
   const [galleryMode,setGalleryMode]=useState<'browse'|'save'|undefined>(teamId?undefined:'browse')
   const entryOpened = useRef(false)
@@ -145,7 +146,7 @@ function Workbench({ sessionId, teamId, archived = false, waitingCount = 0, open
   const reviewingCheckpoint = !!reviewTask && !editor && !selectedTask && !selectedEdge
   const discussionTask = discussion.startsWith('task:') ? team?.tasks.find(t => t.id === discussion.slice(5) && !t.checkpoint) : undefined
   const activeTask = team?.tasks.find(t => t.id === selectedTask)
-  const terminalEdit = !!editor && editor.type !== 'member' && !!activeTask && !activeTask.checkpoint && ['completed','failed','cancelled'].includes(activeTask.status)
+  const terminalEdit = !!editor && editor.type !== 'member' && !!activeTask && canRestartTask(activeTask)
   const member = discussion.startsWith('member:') ? team?.members.find(m => m.name === discussion.slice(7)) : undefined
   const defaultPositions = useMemo(() => arrangeTasks(team?.tasks ?? []), [team?.tasks])
   const taskEditing = !!editor && editor.type !== 'member'
@@ -240,16 +241,21 @@ function Workbench({ sessionId, teamId, archived = false, waitingCount = 0, open
   }, [editor])
   useEffect(() => { if (teamId && teamId !== activeId) { setActiveId(teamId); setData(undefined); updateView(current => ({...initialWorkbenchView(),revision:current.revision+1})); setPositions({}); initializedDiscussion.current = false; generation.current++ } }, [sessionId, teamId])
   const refresh = async (): Promise<void> => {
+    if(refreshInFlight.current||mutationInFlight.current)return
+    refreshInFlight.current=true
     const token = generation.current
     try {
       const result = await request({ sessionId, teamId: activeId, action: archiveView ? 'archive_state' : 'state' })
       if (!result) return
       if (mounted.current && token === generation.current) {
+        setConnectionError('')
+        setError(previous=>previous.startsWith('连接中断')||previous===l('请先重新连接并核对最新状态，再操作流程。')?'':previous)
         if(!activeId)setGalleryMode(undefined)
         setData(result); setActiveId(result.team.id)
         if (!initializedDiscussion.current && result.currentDiscussion) { initializedDiscussion.current = true; if (!initiallyOpen && viewRef.current.revision === 0) selectDiscussion(result.currentDiscussion) }
       }
-    } catch (err) { if (mounted.current && token === generation.current && activeId) setError(err instanceof Error ? err.message : String(err)) }
+    } catch (err) { if (mounted.current && token === generation.current && activeId) setConnectionError(err instanceof Error ? err.message : String(err)) }
+    finally {refreshInFlight.current=false}
   }
   useEffect(() => {
     if (working || (!activeId && data)) return
@@ -257,11 +263,16 @@ function Workbench({ sessionId, teamId, archived = false, waitingCount = 0, open
     // A restored native conversation can mount before the host attaches its
     // Agent. Keep retrying discovery so that its persisted team appears without
     // requiring another navigation or accidentally offering to create a team.
-    const timer = setInterval(() => { if (!working) void refresh() }, 2500)
-    return () => clearInterval(timer)
+    const reconnect=()=>{void refresh()}
+    window.addEventListener('online',reconnect)
+    const timer = setInterval(reconnect, 2500)
+    return () => {clearInterval(timer);window.removeEventListener('online',reconnect)}
   }, [activeId, working, archiveView])
   async function perform(action: string, fields: Record<string, unknown> = {}): Promise<Response | undefined> {
     if(archiveView && action !== 'restore_archive') {setError(l("请先恢复归档，再修改或重新执行。"));return}
+    if(mutationInFlight.current)return
+    if(connectionError){setError(l('请先重新连接并核对最新状态，再操作流程。'));return}
+    mutationInFlight.current=true
     setWorking(true)
     const saving = action === 'edit' || action === 'layout'
     if (saving) setSaveState('saving')
@@ -274,8 +285,8 @@ function Workbench({ sessionId, teamId, archived = false, waitingCount = 0, open
       if(result.activity) publishWorkflowActivity(result.activity)
       if (mounted.current && token === generation.current) { setData(result); setActiveId(result.team.id) }
       return result
-    } catch (err) { if (mounted.current) { setError(err instanceof Error ? err.message : String(err)); if (saving) setSaveState('error') }; return undefined }
-    finally { if (mounted.current) { setWorking(false) } }
+    } catch (err) { if (mounted.current) { setError(err instanceof Error ? err.message : String(err));if(err instanceof Error&&err.message.startsWith('连接中断'))setConnectionError(err.message); if (saving) setSaveState('error') }; return undefined }
+    finally { mutationInFlight.current=false;if (mounted.current) { setWorking(false) } }
   }
   async function createFlow(): Promise<void> {
     const created = await perform('create', { name: name ?? l('新团队'), description: goal })
@@ -332,15 +343,18 @@ function Workbench({ sessionId, teamId, archived = false, waitingCount = 0, open
   }
   function renderReadiness(task: TeamTask) {
     if (!team) return null
-    const state = taskReadiness(team,task,l)
-    return <section className={css.readiness} aria-label={l("执行条件")}><strong>{state.label}</strong><p>{state.detail}</p>{state.dependencies.map(id => <button type="button" key={id} onClick={() => locateTask(id)}>{l("定位 · ")}{team.tasks.find(item => item.id === id)?.subject ?? id}</button>)}</section>
+    const state = taskReadiness(team,task,l,data?.execution?.[task.id])
+    const labels={path:'运行到此节点',review:'打开验收',edit:'完善节点配置',rerun:'修改并重跑',continue:'继续此任务',stop:'重试停止',member:'调整负责人'}
+    const action=state.action
+    const run=()=>{if(action==='review')void openReview(task.id);else if(action==='edit'||action==='rerun'||action==='member')edit(task.checkpoint?'check':'task',task.id);else if(action==='continue')void perform(task.checkpoint?'resume_task':'continue_task',{taskId:task.id,base:data?.base});else if(action==='path')void perform('start_path',{taskId:task.id,base:data?.base});else if(action==='stop')void perform('stop_task',{taskId:task.id})}
+    return <section className={css.readiness} aria-label={l("阻塞原因与下一步")}><strong>{state.label}</strong><p>{state.detail}</p>{action&&!(action==='path'&&task.workflowRerunRequired)&&!(action==='review'&&reviewingCheckpoint)&&!archiveView&&<button type="button" disabled={working||!!unsaved.length||!!connectionError} onClick={run}>{l(labels[action])}</button>}{task.status==='pending'&&canRestartTask(task)&&!archiveView&&!team.halted&&<button disabled={working||!!unsaved.length} onClick={()=>edit('task',task.id)}>{l('修改并重跑')}</button>}{state.dependencies.map(id => <button type="button" key={id} onClick={() => locateTask(id)}>{l("定位 · ")}{team.tasks.find(item => item.id === id)?.subject ?? id}</button>)}</section>
   }
   function renderRerunPath(task: TeamTask) {
     if(!team || archiveView || !task.workflowRerunRequired)return null
     let path:TeamTask[]=[],issue=''
     try { path=rerunPath(team.tasks,task.id).filter(item=>item.workflowRerunRequired);resumeRerunPath(structuredClone(team),task.id) }
     catch(error){issue=error instanceof Error?error.message:String(error)}
-    return <section className={css.readiness} data-rerun-path tabIndex={-1} aria-label={l('重跑路径')}><strong>{l('从上游重跑到此节点')}</strong><p>{path.map(item=>item.subject).join(' → ')}</p><p>{l('按依赖顺序执行，独立分支可并行；经过人工检查时等待你确认，确认后继续。不会启动目标之外的其他待重跑分支。')}</p>{issue&&<p role="alert">{workflowMessage(issue,l)}</p>}<button type="button" disabled={working||!!unsaved.length||!!issue} title={unsaved.length?l('请先保存属性草稿'):undefined} onClick={()=>void perform('resume_rerun_path',{taskId:task.id,base:data?.base})}>{l('重跑到此节点')}</button></section>
+    return <section className={css.readiness} data-rerun-path tabIndex={-1} aria-label={l('重跑路径')}><strong>{l('从上游运行到此节点')}</strong><p>{path.map(item=>item.subject).join(' → ')}</p><p>{l('按依赖顺序执行，独立分支可并行；经过人工检查时等待你确认，确认后继续。不会启动目标之外的其他待重跑分支。')}</p>{issue&&<p role="alert">{workflowMessage(issue,l)}</p>}<button type="button" disabled={working||!!unsaved.length||!!issue} title={unsaved.length?l('请先保存属性草稿'):undefined} onClick={()=>void perform('resume_rerun_path',{taskId:task.id,base:data?.base})}>{l('运行到此节点')}</button></section>
   }
   function renderTaskControl(task: TeamTask) {
     if (!team || archiveView) return null
@@ -565,6 +579,7 @@ function Workbench({ sessionId, teamId, archived = false, waitingCount = 0, open
       key: 'failure:' + task.id, label: l("查看失败任务 · {0}", task.subject), open: () => { setEditing(false); locateTask(task.id, undefined, '[data-task-record]') },
     })),
   ]
+  const blockers=archiveView?[]:(team?.tasks??[]).filter(task=>task.status!=='completed').map(task=>({task,state:taskReadiness(team!,task,l,data?.execution?.[task.id])})).filter(({task,state})=>state.action||state.dependencies.length||task.workflowPaused||task.workflowRerunRequired)
   const firstAction = attention[0]
   const completed = team?.tasks.filter(task => task.status === 'completed').length ?? 0
   // The chat header always exposes Teamflow, even before a team exists.
@@ -632,6 +647,9 @@ function Workbench({ sessionId, teamId, archived = false, waitingCount = 0, open
           {attention.slice(1).map(item => <option key={item.key} value={item.key}>{item.label}</option>)}
         </select>}
       </nav>}
+      {!galleryMode&&!showOutcomes&&team?.halted&&!archiveView&&<section className={css.readiness}><strong>{l('团队已停止')}</strong><p>{l('恢复后可继续待执行工作；已取消或失败的任务需单独重跑。')}</p><button disabled={working} onClick={()=>void perform('resume_team',{base:data?.base,reason:'用户恢复流程'})}>{l('恢复团队')}</button></section>}
+      {!galleryMode&&!showOutcomes&&!!blockers.length&&<details className={css.blockers}><summary>{l('阻塞与恢复')} · {blockers.length}</summary><div>{blockers.map(({task,state})=><section key={task.id}><button onClick={()=>{setEditing(false);locateTask(task.id)}}>{task.subject}</button><strong>{state.label}</strong><p>{state.detail}</p></section>)}</div></details>}
+      {connectionError&&<div className={css.error} role="alert"><strong>{l('连接需要恢复')}</strong><p>{workflowMessage(connectionError,l)}</p><button type="button" disabled={working} onClick={()=>void refresh()}>{l('重新连接并读取状态')}</button></div>}
       {error && <div className={css.error} role="alert">{workflowMessage(error, l)}</div>}
       {archiveView && <p className={css.notice}>{l("归档画布 · 可查看全部节点、连接与成果。恢复并编辑将保留原归档和已完成成果，建立待确认流程，不会自动执行。")}</p>}
       {feedback && !editor && <p className={css.notice} role="status">{workflowMessage(feedback, l)}</p>}
@@ -724,7 +742,7 @@ function Workbench({ sessionId, teamId, archived = false, waitingCount = 0, open
         {reviewingCheckpoint && reviewTask && <ReviewWorkbench key={`${team.id}:${reviewTask.id}:${reviewTask.checkpoint?.round}`} team={team} task={reviewTask} conversation={conversation} ready={data.ready.includes(reviewTask.id)} archived={archiveView} busy={working} note={note} onNote={setNote}
           onReopen={()=>void perform('reopen_review',{taskId:reviewTask.id,base:data.base})}
           onRerun={async (taskId,instructions)=>!!(await saveEdit([{action:'rerun_task',id:taskId,instructions}],l('安排验收返工')))}
-          reworkBlocked={unsaved.length?l('请先保存属性草稿'):undefined} continuation={renderRerunPath(reviewTask)}
+          reworkBlocked={unsaved.length?l('请先保存属性草稿'):undefined} continuation={<>{!reviewTask.checkpoint?.decision&&renderReadiness(reviewTask)}{renderRerunPath(reviewTask)}</>}
           onBack={() => locateTask(reviewTask.id)} onRefresh={() => void perform('materials', { discussion })}
           onDecision={async (decision, evidence, submittedNote) => {
             const scope = reviewScope
@@ -775,7 +793,7 @@ function Workbench({ sessionId, teamId, archived = false, waitingCount = 0, open
         {editor.type !== 'member' && activeTask && <>{renderReadiness(activeTask)}{!terminalEdit && <>{renderTaskControl(activeTask)}{renderRerunPath(activeTask)}</>}</>}
         {editor.type === 'task' && activeTask && <><button type="button" disabled={working} onClick={() => void startEmbedded(`task:${activeTask.id}`)}><WorkflowIcon name="chat" />{l("与 AI 讨论任务")}</button><small className={css.hint}>{l("讨论使用已保存的资料；当前草稿会保留。")}</small></>}
         {editor.type !== 'member' && activeTask && <TaskRecord task={activeTask} team={team} expanded={false} showContract={false} />}
-        {terminalEdit && activeTask && <><p className={css.notice}>{l("保存将开启新一轮执行，原有状态与结果保存在历史执行记录中。以下下游先等待新结果：")}{rerunImpact(team.tasks,activeTask.id).descendants.map(task=>task.subject).join('、') || l("无")}{l("。可在任意下游节点选择「重跑到此节点」，按依赖执行；人工检查仍需确认，其他分支保留。")}{team.phase === 'staged' ? l("请先查看流程并确认启动团队，再重跑。") : ''}</p></>}
+        {terminalEdit && activeTask && <><p className={css.notice}>{l("保存将开启新一轮执行，原有状态与结果保存在历史执行记录中。以下下游先等待新结果：")}{rerunImpact(team.tasks,activeTask.id).descendants.map(task=>task.subject).join('、') || l("无")}{l("。可在任意下游节点选择「运行到此节点」，按依赖执行；人工检查仍需确认，其他分支保留。")}{team.phase === 'staged' ? l("请先查看流程并确认启动团队，再重跑。") : ''}</p></>}
         {editor.type === 'member' && editor.id && <TaskRerunPicker tasks={team.tasks} member={editor.id} taskId={draft['rerunTaskId'] ?? ''} disabled={working} onTask={id => setDraft(prev => ({ ...prev, rerunTaskId: id }))} />}
         {editor.type !== 'member' && activeTask?.workflowRerunRequired && <p className={css.hint}>{taskReadiness(team,activeTask,l).detail}</p>}
         {feedback && <p role="status">{workflowMessage(feedback, l)}</p>}<p className={css.hint}>{l("属性需点击保存；草稿保存在此标签页，刷新可恢复。Esc 退出编辑并保留草稿。")}</p>{draftStale && <p role="alert">{l("当前对象已变化，草稿仍保留。")}<button type="button" onClick={() => { if(draftId) updateView(current=>{const drafts={...current.drafts};delete drafts[draftId];return {...current,drafts}}) }}>{l("重新载入")}</button></p>}

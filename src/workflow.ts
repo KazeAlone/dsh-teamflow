@@ -4,7 +4,7 @@ import type { TeamState, TeamTask } from './types.ts'
 import type { WorkflowOperation, WorkflowProposal, WorkflowState } from './workflow-types.ts'
 import { validateCreateTask } from './quality-gates.ts'
 import { sanitizeKey } from './state.ts'
-import { rerunImpact, resetTaskForRerun } from './task-rerun.ts'
+import { canRestartTask, rerunImpact, resetTaskForRerun } from './task-rerun.ts'
 import { taskNeedsConfiguration } from './task-description.ts'
 
 export function workflowState(team: TeamState): WorkflowState {
@@ -185,7 +185,7 @@ export function applyWorkflowOperations(original: TeamState, operations: Workflo
     } else if (op.action === 'rerun_task') {
       const original = taskOf(team, op.id)
       if (team.phase === 'staged') throw new Error('团队尚未启动，请直接编辑待执行任务')
-      if (original.checkpoint || !['completed', 'failed', 'cancelled'].includes(original.status)) throw new Error('只能重跑已结束的执行任务')
+      if (!canRestartTask(original)) throw new Error('只能重跑已结束的执行任务')
       if (op.subject !== undefined) original.subject = op.subject
       if (op.description !== undefined) original.description = op.description
       updateDescription(original,op)
@@ -198,7 +198,7 @@ export function applyWorkflowOperations(original: TeamState, operations: Workflo
       if (impact.active.length) throw new Error('受影响的下游任务仍在运行，请先停止后重跑')
       const instructions = op.instructions?.trim()
       if (!instructions) throw new Error('请在编辑任务中填写本次重跑要求')
-      const rerunContext = { instructions, previousStatus: original.status as 'completed'|'failed'|'cancelled', previousOutput: original.output, previousAttemptId: original.attemptId, requestedAt: now }
+      const rerunContext = { instructions, previousStatus: original.status as 'completed'|'failed'|'cancelled'|'pending', previousOutput: original.output, previousAttemptId: original.attemptId, requestedAt: now }
       resetTaskForRerun(original, false, now)
       original.workflowRerunContext = rerunContext
       const validation = validateCreateTask({ ...team, tasks: team.tasks.filter(t => t.id !== original.id) }, original)

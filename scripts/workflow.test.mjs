@@ -34,7 +34,7 @@ async function lifecycleFixture(t, source, options = {}) {
   const captain = {id:'captain-id',status:'idle',session:{header:{cwd:root},ownEvents:()=>[]}}
   const dispatched = []
   let route
-  const ctx = {agents:{get:id=>id===captain.id?captain:options.liveAgents?.get(id)}, on(){}, effect:fn=>fn(), logger:{warn(){}}, subagents:{drainChildren:options.drain ?? (async()=>{})}}
+  const ctx = {agents:{get:id=>id===captain.id?captain:options.liveAgents?.get(id)}, on(){}, effect:fn=>fn(), logger:{warn(){},debug(){}}, subagents:{drainChildren:options.drain ?? (async()=>{})}}
   const scheduler = installTeamScheduler(ctx,{stateDir:'.agent-teams',dispatch:async(...args)=>{dispatched.push(args);return true}})
   installWorkflowWorkbench(ctx,{stateDir:'.agent-teams',maxMembers:8},scheduler,{register:value=>{route=value;return()=>{}}})
   const read = () => readTeam(stateRoot,'demo')
@@ -445,12 +445,10 @@ for (const initialStatus of ['completed','cancelled','failed']) test(`rerun ${in
   assert.match(saved.tasks[0].stoppedAttempts.at(-1).output,/OLD RESULT/)
   assert.equal(saved.tasks[0].stoppedAttempts.at(-1).attemptId,'old-capability')
   assert.match(saved.tasks[0].stoppedAttempts.at(-1).output,new RegExp(initialStatus==='cancelled'?'已取消':initialStatus==='completed'?'已完成':'失败'))
-  await send('resume_task',{taskId:'gate'});assert.equal(status,409);assert.match(response.error,/上游/)
   saved=await read();Object.assign(saved.tasks[0],{status:'completed',output:'NEW RESULT'});saved.members[0].status='idle';await writeTeam(join(root,'.agent-teams'),saved)
   await scheduler.kickTeam(root,'demo',captain);assert.equal(dispatched.length,1,'completion alone cannot release descendants')
   await send('resume_task',{taskId:'gate',base:'stale'});assert.equal(status,409);assert.match(response.error,/重新确认/)
   await send('state');assert.deepEqual(response.ready,[],'suspended gate is not ready for review')
-  await send('resume_task',{taskId:'after'});assert.equal(status,409,'transitive consumer also waits for its direct predecessor')
   await send('resume_task',{taskId:'gate'});assert.equal(status,200);assert.deepEqual(response.ready,['gate']);assert.equal(dispatched.length,1,'checkpoint never dispatched')
   saved=await read();const materials=workflowMaterials(saved,'gate',root)
   assert.match(materials.text,/NEW RESULT/);assert.doesNotMatch(materials.text,/OLD RESULT|OLD DOWNSTREAM/)
@@ -908,7 +906,7 @@ test('pausing a queued task preserves another running task and its member stop b
   disposers.reverse().forEach(dispose => dispose?.()); assert.equal(removed, true)
 })
 
-test('node switches queue downstream, never enable upstream or bypass human review, and reject stale or terminal changes', async t => {
+test('node switches release required upstream, stop at target, preserve review and reject stale changes', async t => {
   const root=mkdtempSync(join(tmpdir(),'workflow-task-switch-'));t.after(()=>rmSync(root,{recursive:true,force:true}))
   const stateRoot=join(root,'.agent-teams'),source=withGate();source.tasks[0].workflowPaused=true;source.tasks[2].workflowPaused=true
   await createTeamDir(stateRoot,source)
@@ -923,16 +921,17 @@ test('node switches queue downstream, never enable upstream or bypass human revi
     await route.handler(req,{writeHead:code=>{status=code},end:body=>{response=JSON.parse(body)}})
   }
   await toggle('after',true);assert.equal(status,200,JSON.stringify(response));assert.equal(response.team.tasks[2].workflowPaused,false)
-  assert.equal(response.team.tasks[0].workflowPaused,true);assert.equal(response.team.tasks[1].checkpoint.decision,undefined);assert.equal(dispatched.length,0)
+  assert.equal(response.team.tasks[0].workflowPaused,false);assert.equal(response.team.tasks[1].checkpoint.decision,undefined);assert.equal(dispatched.length,1)
   assert.equal(response.activity.tasks[2].state,'blocked','enabled is still blocked on prerequisites')
   await toggle('gate',false);assert.equal(status,200,JSON.stringify(response));assert.equal(response.team.tasks[1].workflowPaused,true)
   const saved=await readTeam(stateRoot,'demo');saved.tasks[0].status='completed';saved.tasks[0].output='Keep this result';await writeTeam(stateRoot,saved)
-  await scheduler.kickTeam(root,'demo',captain);assert.equal(dispatched.length,0)
+  await scheduler.kickTeam(root,'demo',captain);assert.equal(dispatched.length,1)
   assert.equal(checkpointReady(saved,saved.tasks[1]),false,'disabled review cannot approve or unlock')
-  await toggle('gate',true);assert.equal(status,200,JSON.stringify(response));assert.equal(response.ready.includes('gate'),true);assert.equal(dispatched.length,0)
+  await toggle('gate',true);assert.equal(status,200,JSON.stringify(response));assert.equal(response.ready.includes('gate'),true);assert.equal(dispatched.length,1)
   assert.equal(response.team.tasks[1].checkpoint.decision,undefined,'enabling is not approval')
   const ready=await readTeam(stateRoot,'demo');decideCheckpoint(ready,'gate','approve','evidence','evidence','OK');await writeTeam(stateRoot,ready)
-  await scheduler.kickTeam(root,'demo',captain);assert.equal(dispatched.length,1,'enabled downstream runs only after approval')
+  await scheduler.kickTeam(root,'demo',captain);assert.equal(dispatched.length,1,'run through gate pauses descendants after approval')
+  await toggle('after',true);assert.equal(status,200);assert.equal(dispatched.length,2)
   await toggle('gate',false);assert.equal(status,409)
   await toggle('t1',true);assert.equal(status,409);assert.equal((await readTeam(stateRoot,'demo')).tasks[0].output,'Keep this result')
   await toggle('after',false,{updatedAt:-1});assert.equal(status,409);assert.match(response.error,/状态已变化/)
@@ -1214,7 +1213,7 @@ test('rerun through a downstream target queues its ancestry atomically and respe
 
 test('rerun path rejects blocked ancestors without partially releasing any node',async()=>{
  const {resumeRerunPath}=await import('../lib/task-rerun.js')
- for(const patch of [{workflowConfigPending:true},{status:'failed'},{workflowRerunRequired:false,workflowPaused:true},{reassigning:true},{assignee:'missing'}]){
+ for(const patch of [{workflowConfigPending:true},{status:'failed'},{reassigning:true},{assignee:'missing'}]){
   const source=team();source.tasks=[{...task('a'),workflowPaused:true,workflowRerunRequired:true,...patch},{...task('b',['a']),workflowPaused:true,workflowRerunRequired:true}]
   const before=structuredClone(source);assert.throws(()=>resumeRerunPath(source,'b'));assert.deepEqual(source,before)
  }
@@ -1323,4 +1322,57 @@ test('start all releases a rerun chain once, approval dispatches downstream, pau
  state=await f.call('set_flow_enabled',{enabled:false,version:flowControlVersion(state.team)});assert.equal(state.code,200,state.error);
  assert.equal(state.team.tasks.find(t=>t.id==='after').workflowPaused,true);const count=f.dispatched.length;await f.kick();assert.equal(f.dispatched.length,count);
  state=await f.call('set_flow_enabled',{enabled:true,version:flowControlVersion(state.team)});assert.equal(state.code,200,state.error);assert.equal(state.team.tasks.find(t=>t.id==='after').workflowPaused,false);
+});
+
+
+test('cold recovery respects persisted pause, rerun, configuration, handoff and dependency fences',async t=>{
+ for(const patch of [{workflowPaused:true},{workflowRerunRequired:true},{workflowConfigPending:true},{reassigning:true},{dependencies:['missing']}]){
+  const source=team();source.members[0].id='old-child';Object.assign(source.tasks[0],{status:'in_progress',attempt:3,attemptId:'old-capability',...patch});
+  const f=await lifecycleFixture(t,source);await f.kick();assert.equal(f.dispatched.length,0,JSON.stringify(patch));assert.equal((await f.read()).tasks[0].attemptId,'old-capability');
+ }
+ const source=team();source.tasks[0].workflowRerunRequired=true;source.tasks[0].workflowPaused=false;
+ const f=await lifecycleFixture(t,source);await f.kick();assert.equal(f.dispatched.length,0,'rerun confirmation is a fence independent of pause');
+});
+
+test('explicit continuation replaces an interrupted attempt once, preserves partial output and rejects stale replay',async t=>{
+ const source=team();source.members[0].id='old-child';Object.assign(source.tasks[0],{status:'in_progress',attempt:3,attemptId:'old-capability',output:'Partial result',workflowRerunContext:{instructions:'Preserve the previously requested correction',previousStatus:'completed',requestedAt:1}});
+ const f=await lifecycleFixture(t,source);const state=await f.call('state');assert.equal(state.execution.t1,'interrupted');
+ const resumed=await f.call('continue_task',{taskId:'t1',base:state.base});assert.equal(resumed.code,200,resumed.error);
+ const current=await f.read();assert.equal(current.tasks[0].attempt,4);assert.notEqual(current.tasks[0].attemptId,'old-capability');assert.equal(current.tasks[0].stoppedAttempts[0].output,'Partial result');assert.equal(f.dispatched.length,1);assert.match(f.dispatched[0][3],/Preserve the previously requested correction/);assert.equal(current.tasks[0].workflowRerunContext.continuation,true);
+ assert.equal((await f.call('continue_task',{taskId:'t1',base:state.base})).code,409);assert.equal(f.dispatched.length,1);
+});
+
+test('continuation never interrupts a running live session or bypasses a rerun gate',async t=>{
+ const source=team();source.members[0].id='live';Object.assign(source.tasks[0],{status:'in_progress',attempt:1,attemptId:'live-attempt'});
+ const f=await lifecycleFixture(t,source,{liveAgents:new Map([['live',{id:'live',status:'running'}]])});let state=await f.call('state');assert.equal(state.execution.t1,'active');
+ assert.equal((await f.call('continue_task',{taskId:'t1',base:state.base})).code,409);assert.equal((await f.read()).tasks[0].attemptId,'live-attempt');
+ source.tasks[0]={...task('t1'),workflowPaused:true,workflowRerunRequired:true};await f.save(source);state=await f.call('state');assert.equal((await f.call('continue_task',{taskId:'t1',base:state.base})).code,409);
+});
+
+test('pause retains monotonic attempts and permits explicit restart of stopped partial work',async t=>{
+ const source=withGate();source.members[0].id='child';Object.assign(source.tasks[0],{status:'in_progress',attempt:5,attemptId:'before-stop',output:'Partial'});
+ const f=await lifecycleFixture(t,source);let state=await f.call('stop_task',{taskId:'t1'});assert.equal(state.code,200,state.error);assert.equal(state.team.tasks[0].attempt,5);
+ const oldBase=state.base;state=await f.call('edit',{base:state.base,title:'Restart from node',operations:[{action:'rerun_task',id:'t1',instructions:'Use corrected input'}]});assert.equal(state.code,200,state.error);
+ assert.equal(state.team.tasks[0].attempt,6);assert.equal(state.team.tasks[0].workflowRerunContext.previousOutput,'Partial');assert.equal(state.team.tasks[1].workflowRerunRequired,true);
+ assert.equal((await f.call('edit',{base:oldBase,title:'Replay',operations:[{action:'rerun_task',id:'t1',instructions:'Again'}]})).code,409);
+});
+
+test('halted workflows require an explicit reason and preserve cancelled results on recovery',async t=>{
+ const source=team();source.halted=true;source.tasks[0].status='cancelled';source.tasks[0].output='Keep cancelled record';const f=await lifecycleFixture(t,source);const state=await f.call('state');
+ assert.equal((await f.call('resume_team',{base:state.base,reason:''})).code,409);
+ const resumed=await f.call('resume_team',{base:state.base,reason:'Connection recovered'});assert.equal(resumed.code,200,resumed.error);assert.equal(resumed.team.halted,false);assert.equal(resumed.team.tasks[0].output,'Keep cancelled record');assert.equal(resumed.team.tasks[0].status,'cancelled');assert.equal(f.dispatched.length,0);
+});
+
+for(const action of ['set_flow_enabled','start_path'])test(action+' continues interrupted upstream without new instructions and preserves completed work',async t=>{
+ const source=withGate();source.members[0].id='offline-child';Object.assign(source.tasks[0],{status:'in_progress',attempt:4,attemptId:'old',output:'Saved partial work'});source.tasks[1].workflowPaused=true;
+ source.tasks.push({...task('done'),status:'completed',output:'Do not repeat'});
+ const f=await lifecycleFixture(t,source);const state=await f.call('state');
+ const next=await f.call(action,action==='start_path'?{taskId:'gate',base:state.base}:{enabled:true,version:flowControlVersion(state.team)});
+ assert.equal(next.code,200,next.error);assert.equal(f.dispatched.length,1);assert.equal(next.team.tasks[0].attempt,5);assert.match(f.dispatched[0][3],/Saved partial work/);assert.doesNotMatch(f.dispatched[0][3],/Explicit rerun/);
+ assert.equal(next.team.tasks.find(t=>t.id==='done').output,'Do not repeat');assert.equal(next.team.tasks.find(t=>t.id==='after').workflowPaused,action==='start_path'?true:undefined);
+});
+test('ordinary paused ancestry starts through target, preserving completed ancestors and pausing further descendants',async t=>{
+ const source=team();source.tasks=[{...task('done'),status:'completed',attempt:2,output:'saved'}, {...task('a',['done']),workflowPaused:true}, {...task('b',['a']),workflowPaused:true}, task('later',['b'])];
+ const f=await lifecycleFixture(t,source);const state=await f.call('state');const next=await f.call('start_path',{taskId:'b',base:state.base});assert.equal(next.code,200,next.error);
+ assert.deepEqual(next.team.tasks[0],source.tasks[0]);assert.equal(next.team.tasks[1].status,'claimed');assert.equal(next.team.tasks[2].workflowPaused,false);assert.equal(next.team.tasks[3].workflowPaused,true);
 });

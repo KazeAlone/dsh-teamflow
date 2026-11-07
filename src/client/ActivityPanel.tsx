@@ -1,3 +1,4 @@
+import { workflowRequest } from './workflow-request.ts'
 import { activityStatus } from './activity-status.ts'
 import { resolveActivitySession, type ActivitySessionOwner } from './activity-session.ts'
 import { WorkflowLocale } from './workflow-i18n.tsx'
@@ -589,9 +590,8 @@ function LocalizedTeamSection({ team, modelDirectory, onContinuePlanning, onDisc
     if (controlPending.current) return
     controlPending.current = true; setControlBusy('flow'); setControlError('')
     try {
-      const response = await fetch('/plugins/dsh-agent-teams/workflow',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({action:team.phase === 'staged' ? 'start' : 'set_flow_enabled',sessionId:team.captainSessionId,teamId:team.teamId,enabled,version:flowControlVersion(team)})})
-      const value = await response.json() as {error?:string;activity?:ActivityTeam}
-      if (!response.ok || !value.activity) throw new Error(value.error || t('task.control.failed'))
+      const value = await workflowRequest<{activity?:ActivityTeam}>({action:team.phase === 'staged' ? 'start' : 'set_flow_enabled',sessionId:team.captainSessionId,teamId:team.teamId,enabled,version:flowControlVersion(team)})
+      if (!value.activity) throw new Error(t('task.control.failed'))
       publishWorkflowActivity(value.activity)
     } catch (error) { setControlError(error instanceof Error ? error.message : t('task.control.failed')) }
     finally { controlPending.current = false; setControlBusy(undefined) }

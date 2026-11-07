@@ -1,6 +1,6 @@
 import {readOutcomePreview} from '../lib/artifacts.js';
 import {outcomeFiles} from '../lib/outcomes.js';
-import {resumeRerunPath,resetTaskForRerun} from '../lib/task-rerun.js';
+import {startWorkflowPath,resumeRerunPath,resetTaskForRerun} from '../lib/task-rerun.js';
 import { builtinTemplates, getBuiltinTemplate } from '../lib/builtin-templates.js';
 import { localizeBuiltinTemplate } from '../lib/builtin-template-locales.js';
 import { templateSeed, instantiateTemplate } from '../lib/templates.js';
@@ -60,6 +60,7 @@ let team = {
     { id: 't3', subject: '开发与自测', description: '仅在需求通过后执行', assignee: 'developer', dependencies: ['t2'], status: 'pending', attempt: 0, createdAt: 1, updatedAt: 1 },
   ],
 };
+if(process.env.TEAMFLOW_PREVIEW_RECOVERY){Object.assign(team.tasks[0],{status:'in_progress',attempt:3,attemptId:'interrupted',output:'已保存调研进度'});team.tasks[1].workflowPaused=true;}
 const outcomeRoot=resolve('output/outcome-showcase/workspace');
 if(process.env.TEAMFLOW_PREVIEW_OUTCOMES){
   mkdirSync(outcomeRoot,{recursive:true});
@@ -177,6 +178,8 @@ createServer(async (req, res) => {
         if (!body.enabled) task.status='pending';
       }
     }
+    if(body.action==='start_path'){if(body.base!==workflowFingerprint(team))throw Error('团队已变化，请刷新节点后重新确认');startWorkflowPath(team,body.taskId);}
+    if(body.action==='continue_task'){const task=team.tasks.find(t=>t.id===body.taskId);if(body.base!==workflowFingerprint(team))throw Error('团队已变化');task.status='claimed';task.attempt++;task.attemptId='continued';task.updatedAt=Date.now();}
     if(body.action==='resume_rerun_path'){if(body.base!==workflowFingerprint(team))throw Error('团队已变化，请刷新节点后重新确认');resumeRerunPath(team,body.taskId);}
     if (body.action === 'resume_task') {
       const task=team.tasks.find(task=>task.id===body.taskId)
@@ -192,7 +195,7 @@ createServer(async (req, res) => {
       const stopping=body.action==='stop_task' || body.enabled===false;
       if(stopping && !task.checkpoint) {
         if(task.attemptId || task.output) {task.stoppedAttempts??=[];task.stoppedAttempts.push({attemptId:task.attemptId,output:task.output,at:Date.now()})}
-        task.status='pending';task.attempt=0;task.attemptId=undefined;task.reassigning=false;
+        task.status='pending';task.attemptId=undefined;task.reassigning=false;
       }
       task.workflowPaused=stopping;task.workflowAwaitingStart=false;task.updatedAt=Date.now();
     }
@@ -220,6 +223,6 @@ createServer(async (req, res) => {
       const d=state.discussions['discussion:check:'+task.id]??={key:'check:'+task.id,messages:[],calls:[]};const m=workflowMaterials(team,task.id,process.cwd());d.materials=m.text;d.evidence=m.evidence;d.materialsRound=task.checkpoint.round;
     }
     if (body.action === 'review') { const material=workflowMaterials(team, body.taskId, process.cwd()); decideCheckpoint(team, body.taskId, body.decision, body.evidence, material.evidence, body.note || '', material.text); }
-    send(res, 200, { team, base: workflowFingerprint(team), ...(['set_flow_enabled','restore_archive','review','set_task_enabled','state','create','template_apply','open_discussion','edit','apply','resume_rerun_path','resume_task','stop_task','start'].includes(body.action)?{activity:await assembleTeamSnapshot({agents:{get(){}}},resolve('node_modules/workflow-preview-state'),'测试',team)}:{}), ready: body.action === 'archive_state' ? [] : team.tasks.filter(t => checkpointReady(team, t) && !t.checkpoint.decision).map(t => t.id), busy: [], ...(process.env.TEAMFLOW_PREVIEW_ACTIVITY_DISCUSSION ? {currentDiscussion:'adapt'} : process.env.TEAMFLOW_PREVIEW_DISCUSSION ? { currentDiscussion: 'member:researcher' } : {}), ...(body.action === 'open_discussion' ? { openedSessionId: discussion.native.sessionId } : {}) });
+    send(res, 200, { team, execution:Object.fromEntries(team.tasks.map(t=>[t.id,t.attemptId==='interrupted'?'interrupted':t.status==='claimed'?'active':'unknown'])), base: workflowFingerprint(team), ...(['set_flow_enabled','restore_archive','review','set_task_enabled','state','create','template_apply','open_discussion','edit','apply','resume_rerun_path','resume_task','stop_task','start'].includes(body.action)?{activity:await assembleTeamSnapshot({agents:{get(){}}},resolve('node_modules/workflow-preview-state'),'测试',team)}:{}), ready: body.action === 'archive_state' ? [] : team.tasks.filter(t => checkpointReady(team, t) && !t.checkpoint.decision).map(t => t.id), busy: [], ...(process.env.TEAMFLOW_PREVIEW_ACTIVITY_DISCUSSION ? {currentDiscussion:'adapt'} : process.env.TEAMFLOW_PREVIEW_DISCUSSION ? { currentDiscussion: 'member:researcher' } : {}), ...(body.action === 'open_discussion' ? { openedSessionId: discussion.native.sessionId } : {}) });
   } catch (error) { send(res, 409, { error: error.message }); }
 }).listen(port, '127.0.0.1', () => console.log(`Workflow UI fixture: http://127.0.0.1:${port}`));

@@ -12,7 +12,7 @@ try {
  await review.getByRole('button',{name:'退回修改',exact:true}).click()
  await review.getByRole('button',{name:'保存要求并重跑任务',exact:true}).click()
  const dialog=page.getByRole('dialog',{name:'TeamFlow 编排工作台'});const start=dialog.getByRole('button',{name:'开始全部',exact:true}),pause=dialog.getByRole('button',{name:'暂停全部',exact:true})
- await review.getByRole('button',{name:'重跑到此节点',exact:true}).waitFor()
+ await review.getByRole('button',{name:'运行到此节点',exact:true}).waitFor()
  assert.equal(await start.isEnabled(),true,'Start all must be available when downstream awaits rerun confirmation')
  await start.click()
  const state=()=>page.request.post(new URL('/plugins/dsh-agent-teams/workflow',page.url()).href,{data:{action:'state',sessionId:'preview',teamId:'preview'}}).then(r=>r.json())

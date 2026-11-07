@@ -6,6 +6,7 @@ import { writeFileSync } from 'node:fs';
 export async function exerciseWorkflow({ baseUrl, cookie, captain, readTeam, record, ctx, events }) {
   let activeSession = captain.id, activeTeam = 'runtime-lab';
   const post = async (action, fields = {}, expected = 200) => {
+    if(action==='resume_task'&&fields.base===undefined)fields={...fields,base:(await post('state')).base};
     const response = await fetch(baseUrl + '/plugins/dsh-agent-teams/workflow', {
       method: 'POST', headers: { 'content-type': 'application/json', origin: baseUrl, cookie },
       body: JSON.stringify({ sessionId: activeSession, teamId: activeTeam, action, ...fields }), signal: AbortSignal.timeout(25000),

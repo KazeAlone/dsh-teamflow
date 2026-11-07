@@ -394,3 +394,5 @@ form.editor { display: flex; flex-direction: column; padding: 0; }
  .workbench[data-live=true] .node[data-lifecycle=inProgress]::before { animation:runningNode 3.2s ease-in-out infinite; }
 }
 @keyframes runningSurface { 0%,100% { background:color-mix(in srgb,var(--wb-accent) 3%,var(--wb-bg)); } 50% { background:color-mix(in srgb,var(--wb-accent) 12%,var(--wb-bg)); } }
+
+.blockers { flex:none; padding:10px 20px; border-bottom:1px solid var(--wb-border); font-size:12px; background:var(--wb-bg); }.blockers>summary { cursor:pointer; color:var(--wb-muted); }.blockers>div { max-height:180px; overflow:auto; }.blockers section { padding:10px 0; border-top:1px solid var(--wb-border); margin-top:8px; }.blockers strong { margin-left:10px; }.blockers p { color:var(--wb-muted); margin:6px 0; }
