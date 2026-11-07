@@ -7,6 +7,7 @@ export declare const zh: {
     'activity.state.running': string;
     'activity.state.review': string;
     'activity.state.attention': string;
+    'activity.state.configuration': string;
     'activity.state.paused': string;
     'activity.state.completed': string;
     'activity.state.archived': string;
@@ -285,6 +286,7 @@ export declare const en: {
     'activity.state.running': string;
     'activity.state.review': string;
     'activity.state.attention': string;
+    'activity.state.configuration': string;
     'activity.state.paused': string;
     'activity.state.completed': string;
     'activity.state.archived': string;

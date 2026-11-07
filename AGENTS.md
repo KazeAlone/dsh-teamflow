@@ -8,7 +8,7 @@ User instructions and authorization take precedence over skill defaults. Do not 
 
 # Stable main and development dev policy
 
-- main is the user-approved stable installation branch. The approved Gallery baseline is 0.2.5, promoted from dev commit 04a04143514bc69bd192913da88cfe773eaed076. The no-Gallery classic version remains at c8530b9f360ac29b1c78179bade3827f49ba31bd (package version 0.1.27, tag classic). Keep the classic tag fixed.
+- main is the user-approved stable installation branch. The approved stable baseline is 0.2.6, promoted after the 2026-11-07 review. The previous Gallery baseline was 0.2.5, promoted from dev commit 04a04143514bc69bd192913da88cfe773eaed076. The no-Gallery classic version remains at c8530b9f360ac29b1c78179bade3827f49ba31bd (package version 0.1.27, tag classic). Keep the classic tag fixed.
 - dev is the working branch for the next iteration. All future features, fixes, version updates, and routine maintenance go to dev by default. Before editing, check the branch; if it is main, switch to dev or create a task branch based on dev.
 - A request to implement, fix, iterate, commit, or push authorizes development work only. It does not authorize promoting that work to main. Update main only when the user explicitly asks to promote/release the development iteration to main or the stable version. If the destination is ambiguous, keep the completed work on dev.
 - Standing commit/push authorization below applies to dev and task branches based on it. It never grants automatic merging, cherry-picking, or pushing development changes to main, moving classic, or publishing a stable release.

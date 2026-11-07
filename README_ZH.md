@@ -21,15 +21,15 @@ TeamFlow 是 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness)
 
 **继续与重跑**：开始全部会恢复未完成、暂停或中断的任务，保留已完成结果。选择“运行到此节点”会恢复必要上游，并暂停目标之后的节点；人工验收仍需确认。模型中断时继续无需填写信息，修改并重跑则需在卡片中填写理由。连接恢复后先读取最新状态，界面不会自动重发操作。阻塞与恢复面板会说明配置、依赖、验收或执行会话的问题，并提供处理入口。
 
-本页介绍开发版 **`0.2.6-dev.17`**。包名为 `@yogurtss/dsh-teamflow`，请通过本仓库或本地构建包安装。
+本页介绍稳定版 **`0.2.6`**。包名为 `@yogurtss/dsh-teamflow`，请通过本仓库或本地构建包安装。
 
 | 版本 | Git 安装源 | 适用场景 |
 | --- | --- | --- |
-| 稳定版 | `github:yogurtss/dsh-teamflow#main` | 已批准发布的 Gallery 版本，下方默认安装方式 |
-| 开发版 | `github:yogurtss/dsh-teamflow#dev` | 本页介绍的流程与界面，包括左侧 Workflow 一级入口 |
+| 稳定版 | `github:yogurtss/dsh-teamflow#main` | 本页介绍的已验收 TeamFlow 版本，下方默认安装方式 |
+| 开发版 | `github:yogurtss/dsh-teamflow#dev` | 下一轮迭代中的功能与修复 |
 | 经典版 | `github:yogurtss/dsh-teamflow#classic` | 不含 Gallery 的历史版本 |
 
-开发版接受 DSH `0.2.1-rc.5`，仓库开发依赖仍使用 `0.2.1-rc.2`。精确版本与验证范围见[兼容记录](./docs/harness-0.2.1-rc.5/README.md)和[兼容矩阵](./compatibility.json)。稳定版与开发版分别发布。
+本版接受 DSH `0.2.1-rc.5`，仓库开发依赖仍使用 `0.2.1-rc.2`。精确版本与验证范围见[兼容记录](./docs/harness-0.2.1-rc.5/README.md)和[兼容矩阵](./compatibility.json)。稳定版与开发版分别发布。
 
 ## 跑通第一个工作流
 

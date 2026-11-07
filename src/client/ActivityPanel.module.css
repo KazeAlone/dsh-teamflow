@@ -2378,7 +2378,7 @@
 /* Compact status capsule: passive information, same navigation target. */
 .badge { --capsule-accent:var(--dsw-alias-state-business-primary,light-dark(#4775c5,#9bbcff)); height:28px; max-width:min(180px,calc(100vw - 36px)); padding:0 9px 0 5px; gap:7px; background:var(--dsw-alias-bg-layer-1,light-dark(#fafbfd,#24272d)); color:var(--dsw-alias-label-primary,light-dark(#344054,#e2e7ee)); border:1px solid var(--dsw-alias-border-l2,light-dark(#e2e6ed,#3b414b)); box-shadow:0 2px 8px #00000008; font-size:11px; font-weight:500; line-height:1; backdrop-filter:none; }
 .badge:hover { background:var(--dsw-alias-bg-module-platform,light-dark(#f2f5fa,#2d323b)); border-color:color-mix(in srgb,var(--capsule-accent) 35%,transparent); transform:none; }
-.badge[data-status=attention],.badge[data-status=review] { --capsule-accent:light-dark(#ad7620,#d9b374); }
+.badge[data-status=configuration],.badge[data-status=attention],.badge[data-status=review] { --capsule-accent:light-dark(#ad7620,#d9b374); }
 .badge[data-status=completed] { --capsule-accent:light-dark(#5c8b76,#91bba8); }
 .badge:is([data-status=paused],[data-status=archived],[data-status=history],[data-status=staged],[data-status=waiting]) { --capsule-accent:light-dark(#8a95a4,#a0a9b6); }
 .statusRing { display:grid; place-items:center; position:relative; width:20px; height:20px; flex:none; color:var(--capsule-accent); }

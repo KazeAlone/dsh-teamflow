@@ -21,15 +21,15 @@ Built on [AgentTeams](https://github.com/NanmiCoder/dsh-agent-teams), TeamFlow n
 
 **Continue and rerun**: Start all resumes unfinished, paused, or interrupted work and preserves completed results. Run through a node resumes its required ancestors and pauses later descendants; human checkpoints still require approval. Continuing needs no new input. An explicit rerun requires a reason in the card editor. Reconnection reads current state without replaying mutations. Blockers and recovery explains configuration, dependencies, review, and execution issues with next actions.
 
-This README describes development version **`0.2.6-dev.17`**. The package is `@yogurtss/dsh-teamflow`; install it from this repository or a local build.
+This README describes stable version **`0.2.6`**. The package is `@yogurtss/dsh-teamflow`; install it from this repository or a local build.
 
 | Channel | Git source | Purpose |
 | --- | --- | --- |
-| Stable | `github:yogurtss/dsh-teamflow#main` | Approved Gallery release; the default installation below |
-| Development | `github:yogurtss/dsh-teamflow#dev` | The workflow and UI described here, including the top-level Workflow entry |
+| Stable | `github:yogurtss/dsh-teamflow#main` | Approved TeamFlow release described here; the default installation below |
+| Development | `github:yogurtss/dsh-teamflow#dev` | Upcoming changes under development |
 | Classic | `github:yogurtss/dsh-teamflow#classic` | Historical version without Gallery |
 
-The development build accepts DSH `0.2.1-rc.5`; the repository's development dependencies remain on `0.2.1-rc.2`. See the [compatibility record](./docs/harness-0.2.1-rc.5/README.md) and [compatibility matrix](./compatibility.json) for exact targets and validation scope. Stable and development releases have separate schedules.
+This release accepts DSH `0.2.1-rc.5`; the repository's development dependencies remain on `0.2.1-rc.2`. See the [compatibility record](./docs/harness-0.2.1-rc.5/README.md) and [compatibility matrix](./compatibility.json) for exact targets and validation scope. Stable and development releases have separate schedules.
 
 ## Your first workflow
 
@@ -67,11 +67,11 @@ The **Review workbench** opens from the checkpoint's details, Needs attention, o
 
 Open **Deliverables** at the top of Workflow to browse submissions, reported checks, and files grouped by source task. Markdown, text/code, CSV, and raster images preview directly from the current workspace; no model is called to collect, organize, or display them. Files come only from declared deliverables and reported changes. Current files are not historical snapshots, and agent reports are not human approval. Use **View source task** or a downstream checkpoint to continue reviewing.
 
-After a return, **Review current results again** starts a fresh review round while retaining the returned decision. To repair the work, select an upstream task under **Arrange rework**, confirm its instructions, and rerun it. Then use **Rerun to this node** to resume the path to the checkpoint; the current round’s evidence loads when ready, so you can review the new result. Other affected branches stay paused.
+After a return, **Review current results again** starts a fresh review round while retaining the returned decision. To repair the work, select an upstream task under **Arrange rework**, confirm its instructions, and rerun it. Then use **Run through this node** to resume the path to the checkpoint; the current round’s evidence loads when ready, so you can review the new result. Other affected branches stay paused.
 
 **Start all** also confirms pending reruns across the workflow. Enabled nodes run in dependency order, wait at human checkpoints, and continue automatically after approval. **Pause all** stops current work and prevents queued downstream work from starting. Unconfigured nodes, rejected reviews, and failed tasks still need attention.
 
-The compact status capsule shows completed-node progress and an attention count. Hover for a breakdown, or click to open Workflow. Running cards breathe gently; reduced-motion settings disable animation.
+The compact status capsule shows completed-node progress and an attention count. Pure configuration issues show “Setup needed”; mixed issues show “Attention”. Hover for a breakdown, or click to open Workflow. Running cards breathe gently; reduced-motion settings disable animation.
 
 ### 4. Revise and reuse
 

@@ -578,9 +578,8 @@ function LocalizedTeamSection({ team, modelDirectory, onContinuePlanning, onDisc
     if (controlPending.current || taskControlState(team,task,historic).disabled) return
     controlPending.current = true; setControlBusy(task.id); setControlError('')
     try {
-      const response = await fetch('/plugins/dsh-agent-teams/workflow',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({action:'set_task_enabled',sessionId:team.captainSessionId,teamId:team.teamId,taskId:task.id,enabled,updatedAt:task.updatedAt})})
-      const value = await response.json() as {error?:string;activity?:ActivityTeam}
-      if (!response.ok || !value.activity) throw new Error(value.error || t('task.control.failed'))
+      const value = await workflowRequest<{activity?:ActivityTeam}>({action:'set_task_enabled',sessionId:team.captainSessionId,teamId:team.teamId,taskId:task.id,enabled,updatedAt:task.updatedAt})
+      if (!value.activity) throw new Error(t('task.control.failed'))
       publishWorkflowActivity(value.activity)
     } catch (error) { setControlError(error instanceof Error ? error.message : t('task.control.failed')) }
     finally { controlPending.current = false; setControlBusy(undefined) }

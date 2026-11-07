@@ -1,3 +1,4 @@
+import { workflowRequest } from './workflow-request.ts'
 import { workflowMessage } from './workflow-text.ts'
 import { useWorkflowText } from './workflow-i18n.tsx'
 /** A compact view over the same isolated native discussion session. */
@@ -46,10 +47,7 @@ function Discussion({ sessionId, teamId, discussion }: { sessionId: string; team
     else if (tail) setUnread(true)
   }, [tail?.id,tail?.text,chat.busy,sending,loading])
   async function request(action: string, message?: string, signal?:AbortSignal): Promise<Chat> {
-    const response = await fetch('/plugins/dsh-agent-teams/workflow', { method: 'POST', signal, headers: { 'content-type': 'application/json' }, body: JSON.stringify({ sessionId, teamId, discussion, action, message }) })
-    const value = await response.json() as Chat & { error?: string }
-    if (!response.ok) throw new Error(value.error ?? `HTTP ${response.status}`)
-    return value
+    return workflowRequest<Chat>({sessionId,teamId,discussion,action,message},fetch,action==='conversation_state'?12000:45000,signal)
   }
   useEffect(() => {
     const abort = new AbortController()

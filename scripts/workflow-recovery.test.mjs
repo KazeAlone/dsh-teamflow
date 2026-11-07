@@ -28,3 +28,9 @@ test('restart accepts stopped partial attempts but never a live attempt or untou
  assert.equal(canRestartTask({...task,status:'pending',workflowPaused:true,reassigning:true}),false)
  assert.equal(canRestartTask({...task,status:'pending',workflowPaused:true,attempt:0}),false)
 })
+
+test('unmount cancellation aborts an in-flight read without waiting for its deadline',async()=>{
+ const controller=new AbortController();let signal;
+ const pending=workflowRequest({action:'conversation_state'},async(url,init)=>{signal=init.signal;return new Promise((resolve,reject)=>signal.addEventListener('abort',()=>reject(Error('cancelled')),{once:true}))},10000,controller.signal);
+ controller.abort();await assert.rejects(pending,/连接中断/);assert.equal(signal.aborted,true);
+});

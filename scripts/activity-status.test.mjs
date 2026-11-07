@@ -20,3 +20,13 @@ test('empty, staged, paused, attention and archive states never imply active exe
  const archived=activityStatus(team([task('a',{status:'in_progress'})]),true);assert.equal(archived.running,0);assert.equal(archived.state,'archived')
  assert.equal(activityStatus(team([task('g',{checkpoint:{round:1},workflowPaused:true})])).reviews,0)
 })
+
+test('pure configuration issues have their own label, including staged workflows; mixed issues stay attention',()=>{
+ const config=task('config',{workflowConfigPending:true});
+ assert.equal(activityStatus(team([config])).state,'configuration');
+ assert.equal(activityStatus({...team([config]),phase:'staged'}).state,'configuration');
+ assert.equal(activityStatus(team([config,task('failed',{status:'failed'})])).state,'attention');
+ assert.equal(activityStatus(team([config,task('review',{checkpoint:{round:1}})])).state,'attention');
+ assert.equal(activityStatus(team([config,task('rerun',{workflowRerunRequired:true})])).state,'attention');
+ assert.equal(activityStatus(team([config]),true).state,'archived');
+});
