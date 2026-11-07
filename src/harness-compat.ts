@@ -224,16 +224,51 @@ export function sessionOwnEvents(session: Session): readonly SessionEvent[] {
 }
 
 /** Install before the first request, including cold resume, with HMR cleanup. */
-export function installContinuableMemberSetup(ctx: Context, setup: Setup): void {
+export function installContinuableMemberSetup(ctx: Context, setup: Setup, allAgents = false): void {
   const runtime = boundary(ctx.subagents)
   if (typeof runtime.registerContinuableSetup === 'function') {
+    // Early registries only apply to descriptor-backed children. Independent
+    // workflow discussions and main sessions also need first-request setup.
+    const installed = new WeakMap<Agent, () => void>()
+    const active = new Set<() => void>()
+    const attach = (childCtx: Context, agent: Agent): (() => void) => {
+      if (installed.has(agent)) return () => {}
+      const teardown = setup(childCtx, agent)
+      const dispose = () => {
+        if (installed.get(agent) !== dispose) return
+        installed.delete(agent); active.delete(dispose); teardown()
+      }
+      installed.set(agent, dispose); active.add(dispose)
+      return dispose
+    }
     // Upstream owns this registration with this.ctx.effect. Cordis resolves
     // that ctx to the accessing plugin, so its disposal revokes installations
     // even while the subagents service and child Agents remain live.
     runtime.registerContinuableSetup.call(ctx.subagents, (childCtx) => {
       if (childCtx.agent === undefined) return unsupported('legacy setup lacks child Agent')
-      return setup(childCtx, childCtx.agent)
+      return allAgents ? attach(childCtx, childCtx.agent) : setup(childCtx, childCtx.agent)
     })
+    if (allAgents && typeof ctx.on === 'function') {
+      const stop = onAgentReady(ctx, (agent, vetoable) => {
+        if (installed.has(agent)) return
+        try {
+          const dispose = attach(agent.ctx, agent)
+          agent.ctx.effect(() => dispose, 'agent-teams: independent workflow setup')
+        } catch (error) {
+          if (vetoable) throw error
+          const failure = new Error(`agent-teams: workflow initialization failed: ${String(error)}`, { cause: error })
+          const stopRequest = agent.ctx.on('agent/request', () => { throw failure })
+          active.add(stopRequest)
+        }
+      })
+      ctx.effect(() => () => { stop(); for (const dispose of [...active]) dispose(); active.clear() }, 'agent-teams: workflow lifecycle compatibility')
+      for (const agent of ctx.agents?.list?.() ?? []) {
+        if (!installed.has(agent)) {
+          const dispose = attach(agent.ctx, agent)
+          agent.ctx.effect(() => dispose, 'agent-teams: independent workflow setup')
+        }
+      }
+    }
     return
   }
   if ((typeof runtime[hostPromptQueue] !== 'function' && typeof runtime[hostPromptDeliver] !== 'function') || typeof runtime.sendMessage !== 'function') {

@@ -112,7 +112,7 @@ export declare function onAgentReady(ctx: Context, listener: (agent: Agent, veto
 /** Read child-owned history, excluding any descriptor inherited from a parent. */
 export declare function sessionOwnEvents(session: Session): readonly SessionEvent[];
 /** Install before the first request, including cold resume, with HMR cleanup. */
-export declare function installContinuableMemberSetup(ctx: Context, setup: Setup): void;
+export declare function installContinuableMemberSetup(ctx: Context, setup: Setup, allAgents?: boolean): void;
 /** Queue a distinct host-authored turn; never substitute model-message steer. */
 export declare function queueMemberPrompt(runtime: Context['subagents'], parent: Agent, childId: SessionId, content: ContentBlock[], signal: AbortSignal): Promise<MessageId>;
 /** Coordination joins the nearest step, including waking an idle/cold child. */

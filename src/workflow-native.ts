@@ -204,7 +204,7 @@ export function installWorkflowConversations(ctx: Context, config: ToolsConfig,
       return admitted ? next() : { kind: 'reject' }
     })
     return () => { stopAdmission(); stopPersona(); stopFilter() }
-  })
+  }, true)
 
   return {
     async readEmbedded(team: TeamState, key: string): Promise<{ messages: { id: string; role: string; text: string; streaming?:boolean }[]; busy: boolean }> {
